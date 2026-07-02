@@ -1,2 +1,2 @@
 # Clothes-Shop
-Data Warehouse Project for Clothes Shop during EPAM Data Analytics Engineering Internship
+Data Warehouse Project for Clothes Shop for EPAM Data Analytics Engineering Internship
