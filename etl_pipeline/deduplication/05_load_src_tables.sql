@@ -1,35 +1,36 @@
 -- ============================================================
--- Load data from EXT tables → SRC tables
--- Includes: type casting, NULL handling, date parsing,
---           and physical deduplication (within-source)
+-- FILE:    05_load_src_tables.sql
+-- ...
+-- BUSINESS LOGIC NOTES (new Business Template):
 --
--- DATE FORMAT: YYYY-MM-DD (ISO 8601) consistent with
---   DM_DIM_TIME_DAY_population.sql which uses:
---   TO_CHAR(d.dt, 'YYYYMMDD') and '2010-01-01'::DATE notation.
---   TO_DATE(..., 'YYYY-MM-DD') is used here accordingly.
+-- 1. FCT_NET_AMOUNT calculation differs by source:
+--    RETAIL: FCT_NET_AMOUNT = line_item_amount – bill_discount
+--            (bill_discount is at bill level; current dataset has
+--             1 line per bill so no pro-rata needed; ETL must verify)
+--    ECOM:   FCT_NET_AMOUNT = sales_amount
+--            (discount already applied; do NOT subtract discount again)
 --
--- NULL HANDLING: empty string '' in CSV → NULL (OPTIONS null ''
---   in ext_ tables). Additional NULLIF(TRIM(col), '') guards
---   against whitespace-only strings.
+-- 2. FCT_UNIT_COST for ECOM = NULL:
+--    cost value in ecom-sample.csv ≈ 1.0 → this is a coefficient/ratio,
+--    NOT a monetary value (per Business Template Metrics section).
+--    FCT_UNIT_COST for ecom records must be set to NULL in BL_DM ETL.
+--    Raw cost value is preserved here in src_ for audit trail.
 --
--- CAST ERROR HANDLING: regex ~ '^[0-9]+\.?[0-9]*$' validates
---   numeric strings before casting. Non-numeric values → NULL.
+-- 3. CE_LOCATIONS (NEW table):
+--    All address columns (customer, employee, store) are kept in src_
+--    because they feed the new CE_LOCATIONS table in BL_3NF.
+--    CE_LOCATIONS.LOCATION_SRC_ID = generated from address components.
 --
--- DEDUPLICATION STRATEGY:
---   (A) PHYSICAL duplicates (identical rows within one CSV) are
---       removed here using ROW_NUMBER() OVER (PARTITION BY
---       natural grain key) – as required by the task description.
---   (B) CROSS-SOURCE duplicates (same customer/employee in both
---       retail and ecom) are handled in BL_3NF layer using the
---       Hierarchy L1 approach (Deduplication.pptx, Slide 11-12):
---         BL_3NF.CE_CUSTOMERS_L1 – immutable attributes (name,
---           birthday) shared across both sources
---         BL_3NF.CE_CUSTOMERS – per-source rows with l1_id FK
---       This separation preserves full source detail while
---       avoiding data loss, per the deduplication presentation.
+-- 4. CE_STORE_ZONES (NEW table):
+--    zone_code from retail feeds CE_STORE_ZONES.STORE_ZONE_NAME.
+--    Ecom has no zone → 'N/A' will be used.
 --
--- RESTARTABILITY: TRUNCATE before INSERT ensures idempotency –
---   re-running this script produces the same result each time.
+-- 5. PRODUCT_COST removed from CE_PRODUCTS_SCD:
+--    cost is now a KPI in CE_SALES and FCT_SALES_DD.FCT_UNIT_COST.
+--
+-- 6. LINE_SRC_ID in FCT_SALES_DD:
+--    New degenerate dimension = PAYMENT_SRC_ID || '_' || PRODUCT_SRC_ID
+--    Both components available in src_ tables.
 -- ============================================================
 
 
@@ -257,10 +258,10 @@ SELECT
     -- DATE cast: column named "date" in ext_ (quoted reserved word)
     -- Format YYYY-MM-DD consistent with DIM_TIME_DAY population script
     CASE
-        WHEN TRIM("date") ~ '^\d{4}-\d{2}-\d{2}$'
-        THEN TO_DATE(TRIM("date"), 'YYYY-MM-DD')
+        WHEN TRIM(transaction_date) ~ '^\d{4}-\d{2}-\d{2}$'
+        THEN TO_DATE(TRIM(transaction_date), 'YYYY-MM-DD')
         ELSE NULL
-    END                                                             AS transaction_date,
+    END                                                            AS transaction_date,
 
     CASE
         WHEN TRIM(sales_amount) ~ '^-?[0-9]+\.?[0-9]*$'
