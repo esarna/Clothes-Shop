@@ -1,7 +1,7 @@
 -- ============================================================
 -- FILE:    05_load_src_tables.sql
 -- ...
--- BUSINESS LOGIC NOTES (new Business Template):
+-- BUSINESS LOGIC NOTES:
 --
 -- 1. FCT_NET_AMOUNT calculation differs by source:
 --    RETAIL: FCT_NET_AMOUNT = line_item_amount – bill_discount
@@ -16,12 +16,12 @@
 --    FCT_UNIT_COST for ecom records must be set to NULL in BL_DM ETL.
 --    Raw cost value is preserved here in src_ for audit trail.
 --
--- 3. CE_LOCATIONS (NEW table):
+-- 3. CE_LOCATIONS:
 --    All address columns (customer, employee, store) are kept in src_
 --    because they feed the new CE_LOCATIONS table in BL_3NF.
 --    CE_LOCATIONS.LOCATION_SRC_ID = generated from address components.
 --
--- 4. CE_STORE_ZONES (NEW table):
+-- 4. CE_STORE_ZONES):
 --    zone_code from retail feeds CE_STORE_ZONES.STORE_ZONE_NAME.
 --    Ecom has no zone → 'N/A' will be used.
 --
