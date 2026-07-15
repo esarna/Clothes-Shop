@@ -2,94 +2,25 @@
 
 -- Load order (respects FK dependencies):
 -- CE_DATES - from sa_retail.src_retail_sales UNION sa_ecom.src_ecom_sales (transaction_date)
--- Dedup key: DATE_SRC_ID = TO_CHAR(transaction_date, 'YYYYMMDD')
--- Guard: NOT EXISTS on DATE_SRC_ID
--- No UPDATE (SCD0)
 -- CE_PAYMENT_TYPES - from UNION of both src_ tables (payment_method / payment_type)
--- Dedup key: PAYMENT_TYPE_SRC_ID = normalized name
--- Guard: NOT EXISTS
--- No UPDATE (SCD0)
 -- CE_STORE_ZONES - from sa_retail.src_retail_sales (zone_code) + manual 'N/A' for ecom
--- Dedup key: STORE_ZONE_SRC_ID
--- Guard: NOT EXISTS
--- No UPDATE (SCD0)
 -- CE_PRODUCT_TOP_CATEGORIES - from sa_retail.src_retail_sales (top_category); 'N/A' for ecom
--- Guard: NOT EXISTS on PRODUCT_TOP_CATEGORY_SRC_ID
--- UPDATE on name change (SCD1)
--- COALESCE(top_category, 'N/A') for NULL handling
 -- CE_PRODUCT_CATEGORIES - from both src_ tables (category / product_type)
--- Join to CE_PRODUCT_TOP_CATEGORIES via LEFT JOIN + COALESCE(..., -1) for missing top_category
--- Guard: NOT EXISTS on PRODUCT_CATEGORY_SRC_ID
--- UPDATE (SCD1)
 -- CE_PRODUCT_SUBCATEGORIES - from both src_ tables (subcategory / details)
--- Join to CE_PRODUCT_CATEGORIES via LEFT JOIN + COALESCE(..., -1)
--- Guard: NOT EXISTS on PRODUCT_SUBCATEGORY_SRC_ID
--- UPDATE (SCD1)
 -- CE_LOCATIONS - from all address sources (store, customer, employee from both src_ tables)
--- LOCATION_SRC_ID = concatenation/hash of address components
--- COALESCE all address fields → 'N/A' fallback
--- Guard: NOT EXISTS on LOCATION_SRC_ID
--- UPDATE (SCD1)
 -- CE_STORES - from sa_retail.src_retail_sales (store_code) + single 'ECOMMERCE' row for ecom
--- Join to CE_STORE_ZONES via LEFT JOIN + COALESCE(..., -1)
--- Join to CE_LOCATIONS via LEFT JOIN + COALESCE(..., -1)
--- Guard: NOT EXISTS on STORE_SRC_ID
--- UPDATE (SCD1)
 -- CE_EMPLOYEES - from both src_ tables (employee_id / ee_id)
--- Join to CE_LOCATIONS via LEFT JOIN + COALESCE(..., -1)
--- Guard: NOT EXISTS on EMPLOYEE_SRC_ID
--- UPDATE attributes (SCD1)
--- CE_CUSTOMERS_SCD - from both src_ tables (customer_id / user_id) ⚠️ SCD2 logic
--- New records: NOT EXISTS on (CUSTOMER_SRC_ID, SOURCE_SYSTEM)
--- Changed records (address change): detect via hash/comparison of location attributes → UPDATE old row (END_DT = CURRENT_DATE - 1, IS_ACTIVE = 'N') → INSERT new version
--- Join to CE_LOCATIONS via LEFT JOIN + COALESCE(..., -1)
--- COALESCE(customer_email, 'N/A') for retail (no email field)
--- CE_PRODUCTS_SCD - from both src_ tables (product_code) ⚠️ SCD2 logic
--- New records: NOT EXISTS
--- Changed records (min_amount, colour, size, description): close old → insert new
--- Join to CE_PRODUCT_SUBCATEGORIES via LEFT JOIN + COALESCE(..., -1)
--- COALESCE all non-mandatory ecom fields → 'N/A' / NULL
--- CE_SALES - from both src_ tables ⚠️ Last - depends on all dimensions
--- Join ALL dimensions via LEFT JOIN + COALESCE(dim_id, -1) for all FKs
--- For CE_CUSTOMERS_SCD / CE_PRODUCTS_SCD: join on SRC_ID + IS_ACTIVE = 'Y'
--- SALE_SRC_ID = bill_id / payment_id
--- Dedup guard: NOT EXISTS on (SALE_SRC_ID, SOURCE_SYSTEM, SOURCE_ENTITY)
--- COST: NULL for ECOM (coefficient, not monetary)
--- COMMIT; after each table's DML block
-
--- ============================================================
--- FILE:    10_load_bl3nf_tables.sql
--- LAYER:   BL_3NF (Business Layer – Third Normal Form)
--- PURPOSE: DML – Incremental load of all CE_ tables from
---          SA layer (sa_retail + sa_ecom) into BL_3NF.
---          Regular load script – rerunnable, no duplicates.
+-- CE_CUSTOMERS_SCD - from both src_ tables (customer_id / user_id) SCD2 logic
+-- CE_PRODUCTS_SCD - from both src_ tables (product_code) SCD2 logic
+-- CE_SALES - from both src_ tables, Last - depends on all dimensions
+-- ===========================================
 --
--- EXECUTION ORDER IN PIPELINE:
---   01_create_schemas.sql               ← SA schemas
---   02_setup_file_fdw.sql               ← file_fdw extension + server
---   03_create_ext_tables.sql            ← EXT_ foreign tables
---   04_create_src_tables.sql            ← SRC_ staging tables
---   05_load_src_tables.sql              ← SA layer incremental load
---   06_create_bl3nf_schema.sql          ← BL_3NF schema
---   07_create_bl3nf_sequences.sql       ← BL_3NF sequences
---   08_create_bl3nf_tables.sql          ← BL_3NF tables DDL
---   09_insert_bl3nf_default_rows.sql    ← BL_3NF default rows
---   >>> 10_load_bl3nf_tables.sql        ← YOU ARE HERE
---
--- RERUNNABLE:  YES - NO DUPLICATES GUARANTEED
---   • SCD Type 0 / 1:  INSERT guarded by NOT EXISTS on NK
---   • SCD Type 1 also: UPDATE existing rows on attribute change
---   • SCD Type 2:      INSERT new version + close previous version
---                      Guard: NOT EXISTS on (NK + tracked attrs hash)
---   • Fact CE_SALES:   INSERT guarded by NOT EXISTS on
---                      (sale_src_id + source_system)
 --
 -- SOURCES:
 --   SA_RETAIL  →  sa_retail.src_retail_sales
 --   SA_ECOM    →  sa_ecom.src_ecom_sales
 --
--- KEY DESIGN RULES (per Naming_Conventions.docx +
---                   Business_Template.docx + Default-value.pptx):
+-- KEY DESIGN RULES:
 --
 --   1. LEFT JOIN for all dimension lookups in CE_SALES
 --      (never INNER JOIN - must preserve all source rows).
@@ -116,37 +47,14 @@
 --         end_dt = DATE '9999-12-31', is_active = 'Y'
 --      d. Insert brand-new rows (NK not yet in target at all).
 --
---   7. COST (KPI) handling by source:
---      SA_RETAIL: cost is monetary → loaded into CE_SALES.cost
---      SA_ECOM:   cost ≈ 1.0 = coefficient, NOT monetary
---                 → CE_SALES.cost = NULL for ecom rows
+--   7. COST (KPI) handling:
+--      cost is monetary → loaded into CE_SALES.cost
 --
 --   8. NET_AMOUNT calculation (for reference - computed in
 --      BL_DM FCT layer, not stored in CE_SALES):
 --      RETAIL: line_item_amount – bill_discount
 --      ECOM:   sales_amount directly (discount already applied)
 --
--- LOAD ORDER (dependency-safe, parents before children):
---   Group 1 – SCD Type 0 (reference, append-only):
---     1.  CE_DATES
---     2.  CE_STORE_ZONES
---     3.  CE_PAYMENT_TYPES
---   Group 2 – SCD Type 1, product hierarchy:
---     4.  CE_PRODUCT_TOP_CATEGORIES
---     5.  CE_PRODUCT_CATEGORIES
---     6.  CE_PRODUCT_SUBCATEGORIES
---   Group 3 – SCD Type 1, address + store chain:
---     7.  CE_LOCATIONS
---     8.  CE_EMPLOYEES
---     9.  CE_STORES
---   Group 4 – SCD Type 2:
---     10. CE_CUSTOMERS_SCD
---     11. CE_PRODUCTS_SCD
---   Group 5 – Fact table:
---     12. CE_SALES
---
--- AUTHOR:  DWH ETL Pipeline
--- CREATED: 2024-01-01
 -- ============================================================
 
 
@@ -187,15 +95,16 @@ SELECT
     nextval('bl_3nf.seq_ce_dates'),
     TO_CHAR(src.full_dt, 'YYYYMMDD'),
     src.full_dt,
-    EXTRACT(ISODOW FROM src.full_dt)::INTEGER,
+    EXTRACT(ISODOW FROM src.full_dt)::SMALLINT,
     TO_CHAR(src.full_dt, 'FMDay'),
-    CASE WHEN EXTRACT(ISODOW FROM src.full_dt) IN (6, 7) THEN 1 ELSE 0 END,
-    EXTRACT(DAY   FROM src.full_dt)::INTEGER,
-    EXTRACT(WEEK  FROM src.full_dt)::INTEGER,
-    TO_CHAR(src.full_dt, 'MM'),
+    CASE WHEN EXTRACT(ISODOW FROM src.full_dt) IN (6, 7)
+         THEN 1::SMALLINT ELSE 0::SMALLINT END,
+    EXTRACT(DAY   FROM src.full_dt)::SMALLINT,
+    EXTRACT(WEEK  FROM src.full_dt)::SMALLINT,
+    EXTRACT(MONTH FROM src.full_dt)::SMALLINT,
     TO_CHAR(src.full_dt, 'FMMonth'),
-    TO_CHAR(src.full_dt, 'Q'),
-    TO_CHAR(src.full_dt, 'YYYY'),
+    EXTRACT(QUARTER FROM src.full_dt)::SMALLINT,
+    EXTRACT(YEAR  FROM src.full_dt)::SMALLINT,
     CURRENT_DATE,
     src.source_system,
     src.source_entity
@@ -278,10 +187,10 @@ FROM (
 
     UNION
 
-    -- Ecom: no zone info in source → insert 'N/A' as reference value
+    -- Ecom: no zone → insert 'n/a' lowercase
     SELECT
-        'N/A'                           AS store_zone_src_id,
-        'N/A'                           AS store_zone_name,
+        'n/a'                           AS store_zone_src_id,
+        'n/a'                           AS store_zone_name,
         'SA_ECOM'                       AS source_system,
         'SRC_ECOM_SALES'                AS source_entity
 ) src
@@ -551,7 +460,7 @@ FROM (
     WHERE r.category IS NOT NULL
       AND TRIM(r.category) <> ''
 
-    UNION
+    UNION ALL
 
     SELECT DISTINCT
         UPPER(TRIM(e.product_type))     AS product_category_src_id,
@@ -629,7 +538,7 @@ FROM (
     WHERE r.subcategory IS NOT NULL
       AND TRIM(r.subcategory) <> ''
 
-    UNION
+    UNION ALL
 
     -- SA_ECOM: details + parent product_type
     SELECT DISTINCT
@@ -670,7 +579,7 @@ FROM (
     WHERE r.subcategory IS NOT NULL
       AND TRIM(r.subcategory) <> ''
 
-    UNION
+    UNION ALL
 
     SELECT DISTINCT
         UPPER(TRIM(e.details))          AS product_subcategory_src_id,
@@ -843,9 +752,7 @@ UPDATE bl_3nf.ce_locations tgt
 SET
     location_city        = src.location_city,
     location_state       = src.location_state,
-    ta_update_dt         = CURRENT_DATE,
-    source_system        = src.source_system,
-    source_entity        = src.source_entity
+    ta_update_dt         = CURRENT_DATE
 FROM (
     SELECT DISTINCT
         COALESCE(TRIM(store_address),      'n/a')
@@ -991,7 +898,7 @@ FROM (
         ORDER BY TRIM(employee_id), ta_insert_dt DESC
     ) retail
 
-    UNION
+    UNION ALL
 
     -- SA_ECOM employees
     SELECT * FROM (
@@ -1052,7 +959,7 @@ FROM (
         ORDER BY TRIM(employee_id), ta_insert_dt DESC
     ) retail
 
-    UNION
+    UNION ALL
 
     SELECT * FROM (
         SELECT DISTINCT ON (TRIM(ee_id))
@@ -1156,7 +1063,7 @@ FROM (
     SELECT
         'ECOMMERCE'                                     AS store_src_id,
         'ECOMMERCE'                                     AS store_channel,
-        'N/A'                                           AS zone_src_id,
+        'n/a'                                           AS zone_src_id,
         'n/a_n/a'                                       AS location_src_id,
         'SA_ECOM'                                       AS source_system,
         'SRC_ECOM_SALES'                                AS source_entity
@@ -1219,7 +1126,7 @@ COMMIT;
 -- ============================================================
 -- GROUP 4 - SCD TYPE 2: Historical dimension tables
 --
--- SCD2 LOGIC (per Naming_Conventions.docx §SCD Type 2):
+-- SCD2 LOGIC:
 --   STEP A – Close previous active version:
 --     For rows where NK exists in target with IS_ACTIVE = 'Y'
 --     AND any tracked attribute differs from source:
@@ -1255,7 +1162,8 @@ BEGIN;
 UPDATE bl_3nf.ce_customers_scd tgt
 SET
     end_dt      = CURRENT_DATE - 1,
-    is_active   = 'N'
+    is_active   = 'N',
+    ta_update_dt = CURRENT_DATE
 FROM (
     -- SA_RETAIL customers
     SELECT * FROM (
@@ -1288,6 +1196,7 @@ LEFT JOIN bl_3nf.ce_locations loc
 WHERE tgt.customer_src_id  = src.customer_src_id
   AND tgt.is_active        = 'Y'
   AND tgt.customer_id     > 0
+  AND tgt.end_dt                 = DATE '9999-12-31'
   AND tgt.customer_location_id <> COALESCE(loc.location_id, -1);
 
 -- ── STEP B: Insert new version for rows that were just closed ───
@@ -1303,6 +1212,7 @@ INSERT INTO bl_3nf.ce_customers_scd (
     end_dt,
     is_active,
     ta_insert_dt,
+    ta_update_dt,
     source_system,
     source_entity
 )
@@ -1317,6 +1227,7 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
+    CURRENT_DATE,
     CURRENT_DATE,
     src.source_system,
     src.source_entity
@@ -1366,16 +1277,15 @@ WHERE EXISTS (
     SELECT 1
     FROM   bl_3nf.ce_customers_scd closed
     WHERE  closed.customer_src_id = src.customer_src_id
-      AND  closed.is_active       = 'N'
-      AND  closed.end_dt          = CURRENT_DATE - 1
+    AND  closed.is_active       = 'N'
+    AND  closed.end_dt          = CURRENT_DATE - 1
 )
--- And no active row yet exists for today's start_dt
 AND NOT EXISTS (
     SELECT 1
     FROM   bl_3nf.ce_customers_scd active
     WHERE  active.customer_src_id = src.customer_src_id
-      AND  active.is_active       = 'Y'
-      AND  active.start_dt        = CURRENT_DATE
+    AND  active.is_active       = 'Y'
+    AND  active.start_dt        = CURRENT_DATE
 );
 
 -- ── STEP C: Insert brand-new customers (NK not in target yet) ───
@@ -1391,6 +1301,7 @@ INSERT INTO bl_3nf.ce_customers_scd (
     end_dt,
     is_active,
     ta_insert_dt,
+    ta_update_dt,
     source_system,
     source_entity
 )
@@ -1405,6 +1316,7 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
+    CURRENT_DATE,
     CURRENT_DATE,
     src.source_system,
     src.source_entity
@@ -1474,18 +1386,16 @@ COMMIT;
 --      Sources: product attributes from SA_RETAIL + SA_ECOM
 --      NK:      product_code (same column name in both sources)
 --      Tracked SCD2 attributes:
---        product_description  (retail: description / ecom: NOT-CAPTURED)
---        product_colour       (retail: colour       / ecom: NOT-CAPTURED)
---        product_size         (retail: size         / ecom: NOT-CAPTURED)
+--        product_description  (retail: description / ecom: n/a)
+--        product_colour       (retail: colour       / ecom: n/a)
+--        product_size         (retail: size         / ecom: n/a)
 --        product_min_amount   (retail: min_amount   / ecom: NULL)
 --      FK: product_subcategory_id → CE_PRODUCT_SUBCATEGORIES
 --          resolved via subcategory/details NK; COALESCE to -1
 --      PK: COMPOSITE (product_id + start_dt)
 --      NOTE: PRODUCT_COST is a KPI → stored in CE_SALES, NOT here.
 --            Ecom products: colour/size/description unavailable
---            → stored as 'NOT-CAPTURED' (not 'n/a') per project
---            convention for "field exists but not in this source".
---            product_min_amount = NULL for ecom (no catalog price).
+--            → stored as 'n/a'
 -- ------------------------------------------------------------
 
 -- ── STEP A: Close previous active version when tracked attrs changed ─
@@ -1495,16 +1405,17 @@ BEGIN;
 UPDATE bl_3nf.ce_products_scd tgt
 SET
     end_dt      = CURRENT_DATE - 1,
-    is_active   = 'N'
+    is_active   = 'N',
+    ta_update_dt = CURRENT_DATE
 FROM (
     -- SA_RETAIL: all tracked attributes available
     SELECT * FROM (
         SELECT DISTINCT ON (TRIM(r.product_code))
             TRIM(r.product_code)                                AS product_src_id,
             UPPER(TRIM(r.subcategory))                          AS subcategory_src_id,
-            COALESCE(TRIM(r.description),   'NOT-CAPTURED')     AS product_description,
-            COALESCE(TRIM(r.colour),        'NOT-CAPTURED')     AS product_colour,
-            COALESCE(TRIM(r.size),          'NOT-CAPTURED')     AS product_size,
+            COALESCE(TRIM(r.description),   'n/a')              AS product_description,
+            COALESCE(TRIM(r.colour),        'n/a')              AS product_colour,
+            COALESCE(TRIM(r.size),          'n/a')              AS product_size,
             r.min_amount                                        AS product_min_amount
         FROM sa_retail.src_retail_sales r
         WHERE r.product_code IS NOT NULL
@@ -1519,9 +1430,9 @@ FROM (
         SELECT DISTINCT ON (TRIM(e.product_code))
             TRIM(e.product_code)    AS product_src_id,
             UPPER(TRIM(e.details))  AS subcategory_src_id,
-            'NOT-CAPTURED'          AS product_description,
-            'NOT-CAPTURED'          AS product_colour,
-            'NOT-CAPTURED'          AS product_size,
+            'n/a'                   AS product_description,
+            'n/a'                   AS product_colour,
+            'n/a'                   AS product_size,
             NULL::DECIMAL(12,2)     AS product_min_amount
         FROM sa_ecom.src_ecom_sales e
         WHERE e.product_code IS NOT NULL
@@ -1533,6 +1444,7 @@ LEFT JOIN bl_3nf.ce_product_subcategories sub
        ON sub.product_subcategory_src_id = src.subcategory_src_id
 WHERE tgt.product_src_id = src.product_src_id
   AND tgt.is_active       = 'Y'
+  AND tgt.end_dt          = DATE '9999-12-31'
   AND tgt.product_id      > 0   -- never touch default row
   AND (
         tgt.product_description <> src.product_description
@@ -1555,6 +1467,7 @@ INSERT INTO bl_3nf.ce_products_scd (
     end_dt,
     is_active,
     ta_insert_dt,
+    ta_update_dt,
     source_system,
     source_entity
 )
@@ -1569,6 +1482,7 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
+    CURRENT_DATE,
     CURRENT_DATE,
     src.source_system,
     src.source_entity
@@ -1641,6 +1555,7 @@ INSERT INTO bl_3nf.ce_products_scd (
     end_dt,
     is_active,
     ta_insert_dt,
+    ta_update_dt,
     source_system,
     source_entity
 )
@@ -1656,6 +1571,7 @@ SELECT
     DATE '9999-12-31',
     'Y',
     CURRENT_DATE,
+    CURRENT_DATE,
     src.source_system,
     src.source_entity
 FROM (
@@ -1664,9 +1580,9 @@ FROM (
         SELECT DISTINCT ON (TRIM(r.product_code))
             TRIM(r.product_code)                                AS product_src_id,
             UPPER(TRIM(r.subcategory))                          AS subcategory_src_id,
-            COALESCE(TRIM(r.description),   'NOT-CAPTURED')     AS product_description,
-            COALESCE(TRIM(r.colour),        'NOT-CAPTURED')     AS product_colour,
-            COALESCE(TRIM(r.size),          'NOT-CAPTURED')     AS product_size,
+            COALESCE(TRIM(r.description),   'n/a')              AS product_description,
+            COALESCE(TRIM(r.colour),        'n/a')              AS product_colour,
+            COALESCE(TRIM(r.size),          'n/a')              AS product_size,
             r.min_amount                                        AS product_min_amount,
             'SA_RETAIL'                                         AS source_system,
             'SRC_RETAIL_SALES'                                  AS source_entity
@@ -1683,9 +1599,9 @@ FROM (
         SELECT DISTINCT ON (TRIM(e.product_code))
             TRIM(e.product_code)    AS product_src_id,
             UPPER(TRIM(e.details))  AS subcategory_src_id,
-            'NOT-CAPTURED'          AS product_description,
-            'NOT-CAPTURED'          AS product_colour,
-            'NOT-CAPTURED'          AS product_size,
+            'n/a'                   AS product_description,
+            'n/a'                   AS product_colour,
+            'n/a'                   AS product_size,
             NULL::DECIMAL(12,2)     AS product_min_amount,
             'SA_ECOM'               AS source_system,
             'SRC_ECOM_SALES'        AS source_entity
@@ -1720,23 +1636,6 @@ COMMIT;
 -- ============================================================
 -- GROUP 5 - FACT TABLE: CE_SALES
 --
--- STRATEGY: Append-only incremental load.
---   • Grain: one row per product line item per transaction.
---   • Dedup guard: NOT EXISTS on (sale_src_id + source_system).
---   • ALL dimension lookups use LEFT JOIN + COALESCE(fk, -1).
---   • FK to SCD2 tables resolved by:
---       JOIN ON src_id = customer/product_src_id
---       AND is_active = 'Y'   ← current active version only
---       COALESCE to -1 if no active version found.
---   • KPI columns (sales_amount, discount, cost, quantity):
---       NULLABLE by design - never COALESCE these to 0.
---   • COST handling:
---       SA_RETAIL: monetary cost  → loaded as-is
---       SA_ECOM:   cost ≈ 1.0 coefficient, NOT monetary
---                  → CE_SALES.cost = NULL for all ecom rows.
---   • TA_UPDATE_DT = CURRENT_DATE at insert time (fact row
---     is append-only but column exists for audit compliance).
---
 -- SOURCE FIELD MAPPING:
 --   SA_RETAIL:
 --     sale_src_id   ← bill_id
@@ -1761,7 +1660,7 @@ COMMIT;
 --     payment_type_id ← payment_type   → lookup CE_PAYMENT_TYPES
 --     sales_amount  ← sales_amount
 --     discount      ← discount
---     cost          ← NULL             (coefficient, not monetary)
+--     cost          ← cost             (monetary)
 --     quantity      ← quantity
 -- ============================================================
 
@@ -1775,6 +1674,7 @@ BEGIN;
 INSERT INTO bl_3nf.ce_sales (
     sale_id,
     sale_src_id,
+    event_dt,
     date_id,
     customer_id,
     employee_id,
@@ -1794,6 +1694,7 @@ SELECT
     nextval('bl_3nf.seq_ce_sales'),
     TRIM(r.bill_id),
     -- DATE FK: lookup by NK = TO_CHAR(transaction_date,'YYYYMMDD')
+    r.transaction_date,
     COALESCE(d.date_id,          -1),
     -- CUSTOMER FK (SCD2 logical): current active row for this NK
     COALESCE(cust.customer_id,   -1),
@@ -1815,7 +1716,7 @@ SELECT
     'SA_RETAIL',
     'SRC_RETAIL_SALES'
 FROM sa_retail.src_retail_sales r
--- ── Dimension lookups (all LEFT JOIN per design rules) ───────
+-- ── Dimension lookups (all LEFT JOIN) ───────
 LEFT JOIN bl_3nf.ce_dates d
        ON d.date_src_id        = TO_CHAR(r.transaction_date, 'YYYYMMDD')
 -- SCD2 customer lookup: join on NK + is_active = 'Y' (current version)
@@ -1840,7 +1741,6 @@ WHERE r.bill_id IS NOT NULL
     FROM   bl_3nf.ce_sales tgt
     WHERE  tgt.sale_src_id    = TRIM(r.bill_id)
     AND  tgt.source_system  = 'SA_RETAIL'
-    AND  tgt.product_id     = COALESCE(prod.product_id, -1)
 );
 
 DO $$
@@ -1858,8 +1758,6 @@ COMMIT;
 -- ------------------------------------------------------------
 -- 5.2  CE_SALES - Load from SA_ECOM
 --      NK grain: (payment_id, 'SA_ECOM')
---      NOTE: cost = NULL (ecom cost is a coefficient ~1.0,
---            not a monetary value - per Business_Template §Metrics)
 -- ------------------------------------------------------------
 
 BEGIN;
@@ -1867,6 +1765,7 @@ BEGIN;
 INSERT INTO bl_3nf.ce_sales (
     sale_id,
     sale_src_id,
+    event_dt,
     date_id,
     customer_id,
     employee_id,
@@ -1885,6 +1784,7 @@ INSERT INTO bl_3nf.ce_sales (
 SELECT
     nextval('bl_3nf.seq_ce_sales'),
     TRIM(e.payment_id),
+    e.transaction_date, 
     -- DATE FK
     COALESCE(d.date_id,          -1),
     -- CUSTOMER FK (SCD2 logical): user_id → current active version
@@ -1900,7 +1800,7 @@ SELECT
     -- KPI columns
     e.sales_amount,
     e.discount,
-    NULL,               -- cost = NULL for ecom (coefficient, not monetary)
+    e.cost,
     e.quantity,
     CURRENT_DATE,
     CURRENT_DATE,
@@ -1936,7 +1836,6 @@ WHERE
     FROM   bl_3nf.ce_sales tgt
     WHERE  tgt.sale_src_id    = TRIM(e.payment_id)
     AND  tgt.source_system  = 'SA_ECOM'
-    AND  tgt.product_id     = COALESCE(prod.product_id, -1)
 );
 
 DO $$
@@ -1986,7 +1885,7 @@ BEGIN
     SELECT COUNT(*) INTO v_products       FROM bl_3nf.ce_products_scd            WHERE product_id              > 0;
     SELECT COUNT(*) INTO v_sales_retail   FROM bl_3nf.ce_sales WHERE source_system = 'SA_RETAIL';
     SELECT COUNT(*) INTO v_sales_ecom     FROM bl_3nf.ce_sales WHERE source_system = 'SA_ECOM';
-    v_sales_total := v_sales_retail + v_sales_ecom;
+    SELECT COUNT(*) INTO v_sales_total  FROM bl_3nf.ce_sales;
 
     RAISE NOTICE '=================================================================';
     RAISE NOTICE ' BL_3NF INCREMENTAL LOAD - FINAL ROW COUNT SUMMARY';

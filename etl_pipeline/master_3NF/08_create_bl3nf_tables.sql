@@ -1,115 +1,27 @@
 -- DDL - All BL_3NF CE_ tables (rerunnable: DROP TABLE IF EXISTS + CREATE TABLE)
-
--- Tables to create (in dependency order):
--- bl_3nf.CE_DATES - SCD Type 0
--- Columns: DATE_ID, DATE_SRC_ID, FULL_DT, DAY_OF_WEEK_NUM, DAY_OF_WEEK_DESC, IS_WEEKEND, DAY_OF_MONTH_NUM, WEEK_NUM, MONTH_NUM, MONTH_DESC, QUARTER_NUM, YEAR_NUM, TA_INSERT_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: DATE_ID
--- No TA_UPDATE_DT (SCD Type 0 - immutable)
--- bl_3nf.CE_PAYMENT_TYPES - SCD Type 0
--- Columns: PAYMENT_TYPE_ID, PAYMENT_TYPE_SRC_ID, PAYMENT_TYPE_NAME, TA_INSERT_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: PAYMENT_TYPE_ID
--- No TA_UPDATE_DT
--- bl_3nf.CE_STORE_ZONES - SCD Type 0
--- Columns: STORE_ZONE_ID, STORE_ZONE_SRC_ID, STORE_ZONE_NAME, TA_INSERT_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: STORE_ZONE_ID
--- No TA_UPDATE_DT
--- bl_3nf.CE_PRODUCT_TOP_CATEGORIES - SCD Type 1
--- Columns: PRODUCT_TOP_CATEGORY_ID, PRODUCT_TOP_CATEGORY_SRC_ID, PRODUCT_TOP_CATEGORY_NAME, TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: PRODUCT_TOP_CATEGORY_ID
--- bl_3nf.CE_PRODUCT_CATEGORIES - SCD Type 1
--- Columns: PRODUCT_CATEGORY_ID, PRODUCT_CATEGORY_SRC_ID, PRODUCT_CATEGORY_NAME, PRODUCT_TOP_CATEGORY_ID (FK), TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: PRODUCT_CATEGORY_ID
--- FK → CE_PRODUCT_TOP_CATEGORIES
--- bl_3nf.CE_PRODUCT_SUBCATEGORIES - SCD Type 1
--- Columns: PRODUCT_SUBCATEGORY_ID, PRODUCT_SUBCATEGORY_SRC_ID, PRODUCT_SUBCATEGORY_NAME, PRODUCT_CATEGORY_ID (FK), TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: PRODUCT_SUBCATEGORY_ID
--- FK → CE_PRODUCT_CATEGORIES
--- bl_3nf.CE_LOCATIONS - SCD Type 1
--- Columns: LOCATION_ID, LOCATION_SRC_ID, LOCATION_ADDRESS, LOCATION_POSTAL_CODE, LOCATION_CITY, LOCATION_STATE, TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: LOCATION_ID
--- LOCATION_SRC_ID = generated from address components (hash/concatenation)
--- bl_3nf.CE_STORES - SCD Type 1
--- Columns: STORE_ID, STORE_SRC_ID, STORE_CHANNEL, STORE_ZONE_ID (FK), STORE_LOCATION_ID (FK), TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: STORE_ID
--- FK → CE_STORE_ZONES, CE_LOCATIONS
--- bl_3nf.CE_EMPLOYEES - SCD Type 1
--- Columns: EMPLOYEE_ID, EMPLOYEE_SRC_ID, EMPLOYEE_NAME, EMPLOYEE_GENDER, EMPLOYEE_EMAIL, EMPLOYEE_PHONE_NUMBER, EMPLOYEE_LOCATION_ID (FK), TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: EMPLOYEE_ID
--- FK → CE_LOCATIONS
--- bl_3nf.CE_CUSTOMERS_SCD - SCD Type 2 
--- Columns: CUSTOMER_ID, CUSTOMER_SRC_ID, CUSTOMER_NAME, CUSTOMER_GENDER, CUSTOMER_EMAIL, CUSTOMER_PHONE_NUMBER, CUSTOMER_LOCATION_ID (logical FK), START_DT, END_DT, IS_ACTIVE, TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: composite (CUSTOMER_ID, START_DT)
---  No DB FK constraint (SCD2 - logical FK only, per convention)
--- bl_3nf.CE_PRODUCTS_SCD - SCD Type 2 
--- Columns: PRODUCT_ID, PRODUCT_SRC_ID, PRODUCT_SUBCATEGORY_ID (FK), PRODUCT_DESCRIPTION, PRODUCT_COLOUR, PRODUCT_SIZE, PRODUCT_MIN_AMOUNT, START_DT, END_DT, IS_ACTIVE, TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: composite (PRODUCT_ID, START_DT)
--- FK → CE_PRODUCT_SUBCATEGORIES
---  No DB FK constraint from fact table (SCD2)
--- bl_3nf.CE_SALES - Fact entity (CE_ naming per 3NF rules)
--- Columns: SALE_ID, SALE_SRC_ID, DATE_ID (FK), CUSTOMER_ID (logical FK), EMPLOYEE_ID (FK), PRODUCT_ID (logical FK), STORE_ID (FK), PAYMENT_TYPE_ID (FK), SALES_AMOUNT, DISCOUNT, COST, QUANTITY, TA_INSERT_DT, TA_UPDATE_DT, SOURCE_SYSTEM, SOURCE_ENTITY
--- PK: SALE_ID
--- FK → CE_DATES, CE_EMPLOYEES, CE_STORES, CE_PAYMENT_TYPES
---  Logical FK only → CE_CUSTOMERS_SCD, CE_PRODUCTS_SCD (SCD2 - no DB constraint)
--- KPI columns (SALES_AMOUNT, DISCOUNT, COST, QUANTITY) = nullable
---  All DDL scripts must be: DROP TABLE IF EXISTS → CREATE TABLE - rerunnable without errors.
---  All sequences: DROP SEQUENCE IF EXISTS → CREATE SEQUENCE - rerunnable.
---  All non-KPI columns: NOT NULL constraint.
---  Naming: TA_INSERT_DT, TA_UPDATE_DT (per TA_ prefix convention).
-
 -- ============================================================
--- FILE:    08_create_bl3nf_tables.sql
--- LAYER:   BL_3NF (Business Layer - Third Normal Form)
--- PURPOSE: DDL - Create all Core Entity (CE_) tables for the
---          Clothes Shop DWH in the BL_3NF schema.
---
--- EXECUTION ORDER IN PIPELINE:
---   01_create_schemas.sql               ← SA schemas
---   02_setup_file_fdw.sql               ← file_fdw extension + server
---   03_create_ext_tables.sql            ← EXT_ foreign tables
---   04_create_src_tables.sql            ← SRC_ staging tables
---   05_load_src_tables.sql              ← SA layer incremental load
---   06_create_bl3nf_schema.sql          ← BL_3NF schema
---   07_create_bl3nf_sequences.sql       ← BL_3NF sequences
---   >>> 08_create_bl3nf_tables.sql      ← YOU ARE HERE
---   09_insert_bl3nf_default_rows.sql
---   10_load_bl3nf_tables.sql
---
--- RERUNNABLE:  YES
---   Tables are dropped (CASCADE) and recreated on each run.
---   Safe to execute multiple times. Run AFTER sequences script
---   (sequences survive DROP TABLE CASCADE).
+-- DDL - Create all Core Entity (CE_) tables for the
+-- Clothes Shop DWH in the BL_3NF schema.
 --
 -- SOURCES:
 --   SA_RETAIL  →  sa_retail.src_retail_sales
 --   SA_ECOM    →  sa_ecom.src_ecom_sales
 --
--- NAMING CONVENTIONS (per Naming_Conventions.docx):
---   Schema        : bl_3nf
---   SCD Type 0/1  : CE_<Name in Plural>
---   SCD Type 2    : CE_<Name in Plural>_SCD
---   Fact (3NF)    : CE_SALES  (CE_ prefix, no SCD suffix)
---   PK surrogate  : <Name>_ID  BIGINT  (generated by SEQUENCE)
---   Natural key   : <Name>_SRC_ID  VARCHAR
---   Date columns  : postfix _DT  (e.g. TA_INSERT_DT, FULL_DT)
---   Technical cols: prefix TA_  (TA_INSERT_DT, TA_UPDATE_DT)
---   IDs           : BIGINT NOT NULL - SEQUENCE only, no SERIAL
---
--- COLUMN RULES (per Naming_Conventions.docx §Column):
+-- COLUMN RULES:
 --   • ALL columns NOT NULL except KPI metrics in CE_SALES
 --   • SCD Type 2: composite PK = (_ID + START_DT)
 --   • SCD Type 0: no TA_UPDATE_DT (rows never modified)
 --   • SCD Type 1: TA_INSERT_DT + TA_UPDATE_DT
---   • SCD Type 2: START_DT, END_DT, IS_ACTIVE, TA_INSERT_DT
---                 (no TA_UPDATE_DT - new row inserted on change)
+--   • SCD Type 2: START_DT, END_DT, IS_ACTIVE, TA_INSERT_DT, TA_UPDATE_DT
 --   • Source triplet: SOURCE_SYSTEM, SOURCE_ENTITY, <Name>_SRC_ID
 --
--- FK CONSTRAINT RULES (per Naming_Conventions.docx §SCD Type 2):
+-- FK CONSTRAINT RULES:
 --   • FK constraints from CE_SALES to SCD2 tables (CE_CUSTOMERS_SCD,
 --     CE_PRODUCTS_SCD) are STRICTLY PROHIBITED at DB level.
 --     These are LOGICAL FKs only (enforced via ETL, not DB engine).
 --   • FK constraints to SCD Type 0/1 tables ARE enforced at DB level.
 --
--- DEFAULT ROW POLICY (per Default-value.pptx):
+-- DEFAULT ROW POLICY:
 --   • Every CE_ dimension table (ALL except CE_SALES) must have
 --     a default row with surrogate key = -1.
 --   • Default rows are inserted in 09_insert_bl3nf_default_rows.sql.
@@ -127,23 +39,20 @@
 --   Group 5 - Fact table:
 --     CE_SALES
 --
--- SCD TYPE SUMMARY (per Business_Template.docx §2.2):
+-- SCD TYPE SUMMARY:
 --   SCD Type 0 : CE_DATES, CE_PAYMENT_TYPES, CE_STORE_ZONES
 --   SCD Type 1 : CE_LOCATIONS, CE_PRODUCT_TOP_CATEGORIES,
 --                CE_PRODUCT_CATEGORIES, CE_PRODUCT_SUBCATEGORIES,
 --                CE_EMPLOYEES, CE_STORES
 --   SCD Type 2 : CE_CUSTOMERS_SCD, CE_PRODUCTS_SCD
 --   Fact       : CE_SALES
---
--- AUTHOR:  DWH ETL Pipeline
--- CREATED: 2024-01-01
 -- ============================================================
 
 
 -- ============================================================
 -- GROUP 1 - SCD TYPE 0: Immutable reference tables
 --           Rows are inserted ONCE and NEVER modified.
---           → No TA_UPDATE_DT column (per Naming_Conventions.docx).
+--           → No TA_UPDATE_DT column.
 --           → SOURCE_SYSTEM = 'MANUAL', SOURCE_ENTITY = 'MANUAL'
 --              for default and static reference rows.
 -- ============================================================
@@ -157,43 +66,50 @@
 --      No FK dependencies.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_dates CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_dates RESTART WITH 1;
 
+-- NUMERIC FIELD TYPE NOTE:
+--   All numeric date components use SMALLINT NOT NULL.
+--   CHAR types were considered (to allow 'n/a') but rejected:
+--   numeric columns cannot meaningfully store 'n/a' regardless of type.
+--   numeric default = -1 (consistent with
+--   surrogate key default row). SMALLINT covers all calendar values
+--   (max year ~32767) and -1 for the default row sentinel.
 CREATE TABLE bl_3nf.ce_dates (
     date_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_dates'),
     date_src_id         VARCHAR(100)    NOT NULL,
     full_dt             DATE            NOT NULL,
-    day_of_week_num     INTEGER         NOT NULL,
-    day_of_week_desc    VARCHAR(25)     NOT NULL,
-    is_weekend          INTEGER         NOT NULL,
-    day_of_month_num    INTEGER         NOT NULL,
-    week_num            INTEGER         NOT NULL,
-    month_num           CHAR(2)         NOT NULL,
-    month_desc          VARCHAR(25)     NOT NULL,
-    quarter_num         CHAR(1)         NOT NULL,
-    year_num            CHAR(4)         NOT NULL,
+    day_of_week_num     SMALLINT        NOT NULL,
+    day_of_week_desc    VARCHAR(10)     NOT NULL,
+    is_weekend          SMALLINT        NOT NULL,
+    day_of_month_num    SMALLINT        NOT NULL,
+    week_num            SMALLINT        NOT NULL,
+    month_num           SMALLINT        NOT NULL,
+    month_desc          VARCHAR(10)     NOT NULL,
+    quarter_num         SMALLINT        NOT NULL,
+    year_num            SMALLINT        NOT NULL,
     ta_insert_dt        DATE            NOT NULL,
     source_system       VARCHAR(50)     NOT NULL,
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_dates PRIMARY KEY (date_id)
 );
 
-COMMENT ON TABLE  bl_3nf.ce_dates                IS 'SCD Type 0 - Calendar dimension. One row per calendar day. Populated from transaction_date columns in both source systems. Immutable: rows are never updated. NK: date_src_id = YYYYMMDD string.';
-COMMENT ON COLUMN bl_3nf.ce_dates.date_id        IS 'Surrogate PK - generated by bl_3nf.seq_ce_dates.';
-COMMENT ON COLUMN bl_3nf.ce_dates.date_src_id    IS 'Natural key - TO_CHAR(transaction_date, ''YYYYMMDD'').';
-COMMENT ON COLUMN bl_3nf.ce_dates.full_dt        IS 'Actual calendar date. _DT postfix per naming convention.';
-COMMENT ON COLUMN bl_3nf.ce_dates.day_of_week_num IS '1 = Monday, 7 = Sunday (ISO).';
-COMMENT ON COLUMN bl_3nf.ce_dates.day_of_week_desc IS 'Monday - Sunday.';
-COMMENT ON COLUMN bl_3nf.ce_dates.is_weekend     IS '1 = weekend (Sat/Sun), 0 = weekday.';
-COMMENT ON COLUMN bl_3nf.ce_dates.day_of_month_num IS '1 - 31.';
-COMMENT ON COLUMN bl_3nf.ce_dates.week_num       IS 'ISO week number 1 - 52/53.';
-COMMENT ON COLUMN bl_3nf.ce_dates.month_num      IS '01 - 12.';
-COMMENT ON COLUMN bl_3nf.ce_dates.month_desc     IS 'January - December.';
-COMMENT ON COLUMN bl_3nf.ce_dates.quarter_num    IS '1 - 4.';
-COMMENT ON COLUMN bl_3nf.ce_dates.year_num       IS 'YYYY.';
-COMMENT ON COLUMN bl_3nf.ce_dates.ta_insert_dt   IS 'Technical: row creation date. TA_ prefix per naming convention.';
-COMMENT ON COLUMN bl_3nf.ce_dates.source_system  IS 'Source triplet: system the row was loaded from (SA_RETAIL / SA_ECOM / MANUAL).';
-COMMENT ON COLUMN bl_3nf.ce_dates.source_entity  IS 'Source triplet: entity/table the row was loaded from.';
-
+COMMENT ON TABLE  bl_3nf.ce_dates                  IS 'SCD Type 0 - Calendar dimension. One row per calendar day. Immutable. NK: date_src_id = YYYYMMDD. All numeric fields SMALLINT NOT NULL; default row uses -1 sentinel (numeric default per project convention - numeric columns cannot store n/a).';
+COMMENT ON COLUMN bl_3nf.ce_dates.date_id          IS 'Surrogate PK - generated by bl_3nf.seq_ce_dates. Sequence reset to 1 on each DROP+CREATE (ALTER SEQUENCE RESTART above).';
+COMMENT ON COLUMN bl_3nf.ce_dates.date_src_id      IS 'Natural key - TO_CHAR(transaction_date, ''YYYYMMDD'').';
+COMMENT ON COLUMN bl_3nf.ce_dates.full_dt          IS 'Actual calendar date. Default row: 1900-01-01.';
+COMMENT ON COLUMN bl_3nf.ce_dates.day_of_week_num  IS 'ISO weekday 1=Monday…7=Sunday. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.day_of_week_desc IS 'Monday…Sunday. Default row: n/a.';
+COMMENT ON COLUMN bl_3nf.ce_dates.is_weekend       IS '1=weekend (Sat/Sun), 0=weekday. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.day_of_month_num IS '1-31. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.week_num         IS 'ISO week 1-53. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.month_num        IS '1-12. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.month_desc       IS 'January…December. Default row: n/a.';
+COMMENT ON COLUMN bl_3nf.ce_dates.quarter_num      IS '1-4. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.year_num         IS 'Calendar year e.g. 2024. Default row: -1.';
+COMMENT ON COLUMN bl_3nf.ce_dates.ta_insert_dt     IS 'Technical: row creation date.';
+COMMENT ON COLUMN bl_3nf.ce_dates.source_system    IS 'Source triplet: SA_RETAIL / SA_ECOM / MANUAL.';
+COMMENT ON COLUMN bl_3nf.ce_dates.source_entity    IS 'Source triplet: entity/table the row was loaded from.';
 
 -- ------------------------------------------------------------
 -- 1.2  CE_STORE_ZONES
@@ -204,6 +120,7 @@ COMMENT ON COLUMN bl_3nf.ce_dates.source_entity  IS 'Source triplet: entity/tabl
 --      No FK dependencies.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_store_zones CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_store_zones RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_store_zones (
     store_zone_id       BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_store_zones'),
@@ -236,6 +153,7 @@ COMMENT ON COLUMN bl_3nf.ce_store_zones.source_entity    IS 'Source triplet: SRC
 --      NOTE: No SOURCE_ID in raw data → NK generated from name.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_payment_types CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_payment_types RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_payment_types (
     payment_type_id         BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_payment_types'),
@@ -272,10 +190,10 @@ COMMENT ON COLUMN bl_3nf.ce_payment_types.source_entity     IS 'Source triplet: 
 --      Sources: src_retail_sales.top_category
 --               ecom → no equivalent → FK in CE_PRODUCTS_SCD = -1
 --      No FK dependencies.
---      NOTE: No _DESC column - not present in source data
---            (per Business_Template.docx §2.3.7).
+--      NOTE: No _DESC column - not present in source data.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_product_top_categories CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_product_top_categories RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_product_top_categories (
     product_top_category_id         BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_product_top_categories'),
@@ -307,10 +225,10 @@ COMMENT ON COLUMN bl_3nf.ce_product_top_categories.source_entity               I
 --               src_ecom_sales.product_type
 --      FK: PRODUCT_TOP_CATEGORY_ID → CE_PRODUCT_TOP_CATEGORIES
 --          (ecom: FK = -1 default row, retail: resolved by NK)
---      NOTE: No _DESC column - not present in source data
---            (per Business_Template.docx §2.3.6).
+--      NOTE: No _DESC column - not present in source data.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_product_categories CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_product_categories RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_product_categories (
     product_category_id         BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_product_categories'),
@@ -345,10 +263,10 @@ COMMENT ON COLUMN bl_3nf.ce_product_categories.source_entity               IS 'S
 --      Sources: src_retail_sales.subcategory
 --               src_ecom_sales.details
 --      FK: PRODUCT_CATEGORY_ID → CE_PRODUCT_CATEGORIES
---      NOTE: No _DESC column - not present in source data
---            (per Business_Template.docx §2.3.5).
+--      NOTE: No _DESC column - not present in source data.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_product_subcategories CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_product_subcategories RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_product_subcategories (
     product_subcategory_id          BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_product_subcategories'),
@@ -385,7 +303,7 @@ COMMENT ON COLUMN bl_3nf.ce_product_subcategories.source_entity                 
 -- ------------------------------------------------------------
 -- 3.1  CE_LOCATIONS
 --      SCD Type 1 - Shared address table for customers,
---      employees, and stores (per Business_Template §2.3.2).
+--      employees, and stores.
 --      NK: LOCATION_SRC_ID = COALESCE(TRIM(address),'n/a')
 --                         || '_' || COALESCE(TRIM(postal_code),'n/a')
 --      Sources: All address columns from both source systems
@@ -393,6 +311,7 @@ COMMENT ON COLUMN bl_3nf.ce_product_subcategories.source_entity                 
 --      No FK dependencies.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_locations CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_locations RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_locations (
     location_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_locations'),
@@ -400,7 +319,7 @@ CREATE TABLE bl_3nf.ce_locations (
     location_address        VARCHAR(200)    NOT NULL,
     location_postal_code    VARCHAR(10)     NOT NULL,
     location_city           VARCHAR(100)    NOT NULL,
-    location_state          CHAR(2)         NOT NULL,
+    location_state          VARCHAR(3)      NOT NULL,
     ta_insert_dt            DATE            NOT NULL,
     ta_update_dt            DATE            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
@@ -415,7 +334,7 @@ COMMENT ON COLUMN bl_3nf.ce_locations.location_src_id    IS 'Natural key - compo
 COMMENT ON COLUMN bl_3nf.ce_locations.location_address   IS 'Street address. n/a for ecom store records.';
 COMMENT ON COLUMN bl_3nf.ce_locations.location_postal_code IS 'Postal code - determinant of city and state.';
 COMMENT ON COLUMN bl_3nf.ce_locations.location_city      IS 'City - determined by postal code.';
-COMMENT ON COLUMN bl_3nf.ce_locations.location_state     IS 'State code (2 chars) - determined by postal code.';
+COMMENT ON COLUMN bl_3nf.ce_locations.location_state     IS 'State/region code. VARCHAR(3): fits n/a default (3 chars) and US 2-char codes. CHAR(2) would force non-standard na workaround. Default row: n/a.';
 COMMENT ON COLUMN bl_3nf.ce_locations.ta_insert_dt       IS 'Technical: row creation date.';
 COMMENT ON COLUMN bl_3nf.ce_locations.ta_update_dt       IS 'Technical: last update date (SCD1 - overwrite on change).';
 COMMENT ON COLUMN bl_3nf.ce_locations.source_system      IS 'Source triplet: SA_RETAIL / SA_ECOM / MANUAL.';
@@ -432,12 +351,13 @@ COMMENT ON COLUMN bl_3nf.ce_locations.source_entity      IS 'Source triplet: SRC
 --      NOTE: SSN excluded from all layers (sensitive data).
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_employees CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_employees RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_employees (
     employee_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_employees'),
     employee_src_id         VARCHAR(50)     NOT NULL,
     employee_name           VARCHAR(100)    NOT NULL,
-    employee_gender         CHAR(1)         NOT NULL,
+    employee_gender         VARCHAR(3)      NOT NULL,
     employee_email          VARCHAR(100)    NOT NULL,
     employee_phone_number   VARCHAR(30)     NOT NULL,
     employee_location_id    BIGINT          NOT NULL,
@@ -455,7 +375,7 @@ COMMENT ON TABLE  bl_3nf.ce_employees                        IS 'SCD Type 1 - Em
 COMMENT ON COLUMN bl_3nf.ce_employees.employee_id            IS 'Surrogate PK - generated by bl_3nf.seq_ce_employees.';
 COMMENT ON COLUMN bl_3nf.ce_employees.employee_src_id        IS 'Natural key - employee_id (SA_RETAIL) / ee_id (SA_ECOM).';
 COMMENT ON COLUMN bl_3nf.ce_employees.employee_name          IS 'Full name. COALESCE to n/a if NULL in source.';
-COMMENT ON COLUMN bl_3nf.ce_employees.employee_gender        IS 'M / F. COALESCE to n if NULL in source.';
+COMMENT ON COLUMN bl_3nf.ce_employees.employee_gender        IS 'M / F / n/a. VARCHAR(3): fits n/a default (3 chars). CHAR(1) would force single-char n workaround inconsistent with project standard.';
 COMMENT ON COLUMN bl_3nf.ce_employees.employee_email         IS 'Work email address. COALESCE to n/a if NULL in source.';
 COMMENT ON COLUMN bl_3nf.ce_employees.employee_phone_number  IS 'Contact phone number. COALESCE to n/a if NULL in source.';
 COMMENT ON COLUMN bl_3nf.ce_employees.employee_location_id   IS 'FK → CE_LOCATIONS. -1 if address not available.';
@@ -475,6 +395,7 @@ COMMENT ON COLUMN bl_3nf.ce_employees.source_entity          IS 'Source triplet:
 --          STORE_LOCATION_ID → CE_LOCATIONS
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_stores CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_stores RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_stores (
     store_id            BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_stores'),
@@ -488,7 +409,7 @@ CREATE TABLE bl_3nf.ce_stores (
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_stores                 PRIMARY KEY (store_id),
     CONSTRAINT uq_ce_stores_src_id          UNIQUE      (store_src_id),
-    CONSTRAINT chk_ce_stores_channel        CHECK       (store_channel IN ('RETAIL', 'ECOMMERCE')),
+    CONSTRAINT chk_ce_stores_channel        CHECK       (store_channel IN ('RETAIL', 'ECOMMERCE', 'n/a')),
     CONSTRAINT fk_ce_stores_zone            FOREIGN KEY (store_zone_id)
                                             REFERENCES  bl_3nf.ce_store_zones (store_zone_id),
     CONSTRAINT fk_ce_stores_location        FOREIGN KEY (store_location_id)
@@ -498,7 +419,7 @@ CREATE TABLE bl_3nf.ce_stores (
 COMMENT ON TABLE  bl_3nf.ce_stores                   IS 'SCD Type 1 - Store dimension. Retail rows use store_code as NK. Ecom has one constant row: STORE_SRC_ID=ECOMMERCE, STORE_CHANNEL=ECOMMERCE. Zone and location via FKs to CE_STORE_ZONES and CE_LOCATIONS.';
 COMMENT ON COLUMN bl_3nf.ce_stores.store_id          IS 'Surrogate PK - generated by bl_3nf.seq_ce_stores.';
 COMMENT ON COLUMN bl_3nf.ce_stores.store_src_id      IS 'Natural key - store_code (SA_RETAIL) / ''ECOMMERCE'' (SA_ECOM).';
-COMMENT ON COLUMN bl_3nf.ce_stores.store_channel     IS 'Sales channel: RETAIL or ECOMMERCE.';
+COMMENT ON COLUMN bl_3nf.ce_stores.store_channel     IS 'Sales channel: RETAIL / ECOMMERCE / n/a (default row only). n/a in CHECK avoids DDL inside DML.';
 COMMENT ON COLUMN bl_3nf.ce_stores.store_zone_id     IS 'FK → CE_STORE_ZONES. -1 for ecom (no zone).';
 COMMENT ON COLUMN bl_3nf.ce_stores.store_location_id IS 'FK → CE_LOCATIONS. -1 for ecom (no physical address).';
 COMMENT ON COLUMN bl_3nf.ce_stores.ta_insert_dt      IS 'Technical: row creation date.';
@@ -512,7 +433,7 @@ COMMENT ON COLUMN bl_3nf.ce_stores.source_entity     IS 'Source triplet: SRC_RET
 --           Each attribute change creates a new row version.
 --           COMPOSITE PK = (_ID + START_DT).
 --           FK from CE_SALES to these tables: LOGICAL ONLY -
---           NO DB-level CONSTRAINT (per Naming_Conventions.docx).
+--           NO DB-level CONSTRAINT.
 --           IS_ACTIVE: Y = current version, N = expired version.
 --           START_DT default: 1900-01-01
 --           END_DT   default: 9999-12-31
@@ -531,12 +452,13 @@ COMMENT ON COLUMN bl_3nf.ce_stores.source_entity     IS 'Source triplet: SRC_RET
 --            SSN, credit card data excluded (sensitive).
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_customers_scd CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_customers_scd RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_customers_scd (
     customer_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_customers_scd'),
     customer_src_id         VARCHAR(50)     NOT NULL,
     customer_name           VARCHAR(100)    NOT NULL,
-    customer_gender         CHAR(1)         NOT NULL,
+    customer_gender         VARCHAR(3)      NOT NULL,
     customer_email          VARCHAR(100)    NOT NULL,
     customer_phone_number   VARCHAR(30)     NOT NULL,
     customer_location_id    BIGINT          NOT NULL,
@@ -544,27 +466,26 @@ CREATE TABLE bl_3nf.ce_customers_scd (
     end_dt                  DATE            NOT NULL,
     is_active               VARCHAR(1)      NOT NULL,
     ta_insert_dt            DATE            NOT NULL,
+    ta_update_dt            DATE            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_customers_scd          PRIMARY KEY (customer_id, start_dt),
     CONSTRAINT chk_ce_customers_scd_active  CHECK       (is_active IN ('Y', 'N'))
-    --  NO FK constraint on customer_location_id to CE_LOCATIONS:
-    --    CE_CUSTOMERS_SCD is SCD2; logical FK only per Naming_Conventions.docx.
-    --    FK to CE_LOCATIONS is enforced via ETL logic (COALESCE to -1).
 );
 
 COMMENT ON TABLE  bl_3nf.ce_customers_scd                        IS 'SCD Type 2 - Customer dimension. Tracks history of address changes via CUSTOMER_LOCATION_ID. Composite PK = (CUSTOMER_ID + START_DT). FK to CE_LOCATIONS is LOGICAL ONLY (no DB constraint). CUSTOMER_EMAIL = n/a for retail source. SSN and credit card data excluded.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_id            IS 'Surrogate PK (part 1 of 2) - generated by bl_3nf.seq_ce_customers_scd. New value assigned on each new SCD2 version.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_src_id        IS 'Natural key - customer_id (SA_RETAIL) / user_id (SA_ECOM).';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_name          IS 'Full name. COALESCE to n/a if NULL.';
-COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_gender        IS 'M / F. COALESCE to n if NULL.';
+COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_gender        IS 'M / F / n/a. VARCHAR(3): fits n/a default. CHAR(1) would require inconsistent single-char workaround.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_email         IS 'Email address. n/a for retail source (field absent in raw data).';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_phone_number  IS 'Contact phone number. COALESCE to n/a if NULL.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.customer_location_id   IS 'Logical FK → CE_LOCATIONS (no DB constraint). -1 if address not available. SCD2 tracked attribute.';
-COMMENT ON COLUMN bl_3nf.ce_customers_scd.start_dt               IS 'SCD2 period start. PK component (part 2 of 2). Default: 1900-01-01. _DT postfix per naming convention.';
+COMMENT ON COLUMN bl_3nf.ce_customers_scd.start_dt               IS 'SCD2 period start. PK component (part 2 of 2). Default: 1900-01-01.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.end_dt                 IS 'SCD2 period end. Default: 9999-12-31. Set to CURRENT_DATE-1 when row is expired. _DT postfix.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.is_active              IS 'Y = current active version, N = expired historical version.';
-COMMENT ON COLUMN bl_3nf.ce_customers_scd.ta_insert_dt           IS 'Technical: row creation date. No TA_UPDATE_DT in SCD2 (new row inserted on change, not updated).';
+COMMENT ON COLUMN bl_3nf.ce_customers_scd.ta_insert_dt           IS 'Technical: row creation date. Default: 1900-01-01 for default row.';
+COMMENT ON COLUMN bl_3nf.ce_customers_scd.ta_update_dt           IS 'Technical: date ETL closed this version (set IS_ACTIVE=N). Default: 1900-01-01. Updated to CURRENT_DATE when row is expired.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.source_system          IS 'Source triplet: SA_RETAIL / SA_ECOM / MANUAL.';
 COMMENT ON COLUMN bl_3nf.ce_customers_scd.source_entity          IS 'Source triplet: SRC_RETAIL_SALES / SRC_ECOM_SALES / MANUAL.';
 
@@ -583,14 +504,14 @@ COMMENT ON COLUMN bl_3nf.ce_customers_scd.source_entity          IS 'Source trip
 --      FK: PRODUCT_SUBCATEGORY_ID → CE_PRODUCT_SUBCATEGORIES
 --      PK: COMPOSITE (PRODUCT_ID + START_DT)
 --      NOTE: Ecom has no colour/size/description/min_amount/top_category.
---            → PRODUCT_COLOUR = 'NOT-CAPTURED'
---            → PRODUCT_SIZE   = 'NOT-CAPTURED'
---            → PRODUCT_DESCRIPTION = 'NOT-CAPTURED'
---            → PRODUCT_MIN_AMOUNT  = NULL  (KPI - nullable allowed)
---            PRODUCT_COST moved to CE_SALES as KPI
---            (per Business_Template.docx §2.3.11).
+--            → PRODUCT_COLOUR      = 'n/a'
+--            → PRODUCT_SIZE        = 'n/a'
+--            → PRODUCT_DESCRIPTION = 'n/a'
+--            → PRODUCT_MIN_AMOUNT  = NULL   (KPI - numeric, cannot store n/a)
+--            PRODUCT_COST moved to CE_SALES as KPI.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_products_scd CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_products_scd RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_products_scd (
     product_id                  BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_products_scd'),
@@ -604,6 +525,7 @@ CREATE TABLE bl_3nf.ce_products_scd (
     end_dt                      DATE            NOT NULL,
     is_active                   VARCHAR(1)      NOT NULL,
     ta_insert_dt                DATE            NOT NULL,
+    ta_update_dt                DATE            NOT NULL,
     source_system               VARCHAR(50)     NOT NULL,
     source_entity               VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_products_scd               PRIMARY KEY (product_id, start_dt),
@@ -612,18 +534,19 @@ CREATE TABLE bl_3nf.ce_products_scd (
                                                 REFERENCES  bl_3nf.ce_product_subcategories (product_subcategory_id)
 );
 
-COMMENT ON TABLE  bl_3nf.ce_products_scd                         IS 'SCD Type 2 - Product dimension. Tracks history of: PRODUCT_MIN_AMOUNT, PRODUCT_COLOUR, PRODUCT_SIZE, PRODUCT_DESCRIPTION. Composite PK = (PRODUCT_ID + START_DT). PRODUCT_COST is a KPI stored in CE_SALES (not here). Ecom: colour/size/description = NOT-CAPTURED, min_amount = NULL.';
+COMMENT ON TABLE  bl_3nf.ce_products_scd                         IS 'SCD Type 2 - Product dimension. Tracks history of: PRODUCT_MIN_AMOUNT, PRODUCT_COLOUR, PRODUCT_SIZE, PRODUCT_DESCRIPTION. Composite PK = (PRODUCT_ID + START_DT). PRODUCT_COST is a KPI in CE_SALES. Ecom: colour/size/description = n/a (text default), min_amount = NULL (KPI - numeric, cannot store n/a).';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.product_id              IS 'Surrogate PK (part 1 of 2) - generated by bl_3nf.seq_ce_products_scd. New value on each SCD2 version.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.product_src_id          IS 'Natural key - product_code from both SA_RETAIL and SA_ECOM.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.product_subcategory_id  IS 'FK → CE_PRODUCT_SUBCATEGORIES. -1 for default/unknown records.';
-COMMENT ON COLUMN bl_3nf.ce_products_scd.product_description     IS 'Product description. NOT-CAPTURED for ecom (no equivalent field).';
-COMMENT ON COLUMN bl_3nf.ce_products_scd.product_colour          IS 'Product colour variant. NOT-CAPTURED for ecom.';
-COMMENT ON COLUMN bl_3nf.ce_products_scd.product_size            IS 'Product size variant. NOT-CAPTURED for ecom.';
+COMMENT ON COLUMN bl_3nf.ce_products_scd.product_description     IS 'Product description. n/a for ecom (field absent in source).';
+COMMENT ON COLUMN bl_3nf.ce_products_scd.product_colour          IS 'Colour variant. n/a for ecom (field absent in source).';
+COMMENT ON COLUMN bl_3nf.ce_products_scd.product_size            IS 'Size variant. n/a for ecom (field absent in source).';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.product_min_amount      IS 'KPI - minimum/catalog price. NULL allowed (ecom has no catalog price). SCD2 tracked: price changes create new version.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.start_dt                IS 'SCD2 period start. PK component (part 2 of 2). Default: 1900-01-01.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.end_dt                  IS 'SCD2 period end. Default: 9999-12-31. Set to CURRENT_DATE-1 on expiry.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.is_active               IS 'Y = current active version, N = expired historical version.';
-COMMENT ON COLUMN bl_3nf.ce_products_scd.ta_insert_dt            IS 'Technical: row creation date. No TA_UPDATE_DT (SCD2 - new row on change).';
+COMMENT ON COLUMN bl_3nf.ce_products_scd.ta_insert_dt            IS 'Technical: row creation date. Default: 1900-01-01 for default row.';
+COMMENT ON COLUMN bl_3nf.ce_products_scd.ta_update_dt            IS 'Technical: date ETL closed this version (set IS_ACTIVE=N). Default: 1900-01-01. Updated to CURRENT_DATE on expiry.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.source_system           IS 'Source triplet: SA_RETAIL / SA_ECOM / MANUAL.';
 COMMENT ON COLUMN bl_3nf.ce_products_scd.source_entity           IS 'Source triplet: SRC_RETAIL_SALES / SRC_ECOM_SALES / MANUAL.';
 
@@ -631,19 +554,13 @@ COMMENT ON COLUMN bl_3nf.ce_products_scd.source_entity           IS 'Source trip
 -- ============================================================
 -- GROUP 5 - FACT TABLE: CE_SALES
 --           Append-only incremental load (no SCD).
---           Named CE_SALES (CE_ prefix on 3NF layer,
---           per Naming_Conventions.docx §Facts rule).
---           NO default row (fact tables excluded from default
---           row policy per Default-value.pptx slide 3/9).
+--           NO default row.
 --
 --           FK RULES:
 --           • Hard FK enforced to SCD Type 0/1 dimensions:
 --             CE_DATES, CE_EMPLOYEES, CE_STORES, CE_PAYMENT_TYPES
 --           • LOGICAL FK ONLY (no DB constraint) to SCD Type 2:
 --             CE_CUSTOMERS_SCD, CE_PRODUCTS_SCD
---             (per Naming_Conventions.docx §Facts rule 2:
---              "Creation of DB constraint references for SCD2
---               tables on 3NF layer are strongly PROHIBITED.")
 --
 --           KPI COLUMNS (nullable by design):
 --             SALES_AMOUNT, DISCOUNT, COST, QUANTITY
@@ -658,10 +575,12 @@ COMMENT ON COLUMN bl_3nf.ce_products_scd.source_entity           IS 'Source trip
 --               src_ecom_sales   (payment_id, sales_amount, …)
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS bl_3nf.ce_sales CASCADE;
+ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_sales RESTART WITH 1;
 
 CREATE TABLE bl_3nf.ce_sales (
     sale_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_sales'),
     sale_src_id         VARCHAR(50)     NOT NULL,
+    event_dt            DATE            NOT NULL,
     date_id             BIGINT          NOT NULL,
     customer_id         BIGINT          NOT NULL,
     employee_id         BIGINT          NOT NULL,
@@ -677,6 +596,15 @@ CREATE TABLE bl_3nf.ce_sales (
     source_system       VARCHAR(50)     NOT NULL,
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_sales                  PRIMARY KEY (sale_id),
+        -- GRAIN & NK RATIONALE:
+    --   Grain = one product line item per sales transaction.
+    --   One bill_id/payment_id can contain multiple products (basket).
+    --   SALE_SRC_ID alone is not unique — same transaction ID reappears
+    --   for each product in the basket. The 3NF rule requires no derived
+    --   concatenated keys in this layer; the composite unique constraint
+    --   (sale_src_id + source_system + product_id) enforces line-item
+    --   uniqueness without duplicating data. In BL_DM layer these will
+    --   be combined into a single composite business key if needed.
     CONSTRAINT uq_ce_sales_src              UNIQUE      (sale_src_id, source_system, product_id),
     -- Hard FK constraints to SCD Type 0 / 1 dimensions only:
     CONSTRAINT fk_ce_sales_date             FOREIGN KEY (date_id)
@@ -687,16 +615,12 @@ CREATE TABLE bl_3nf.ce_sales (
                                             REFERENCES  bl_3nf.ce_stores         (store_id),
     CONSTRAINT fk_ce_sales_payment_type     FOREIGN KEY (payment_type_id)
                                             REFERENCES  bl_3nf.ce_payment_types  (payment_type_id)
-    --  NO FK constraint to CE_CUSTOMERS_SCD (customer_id):
-    --    SCD2 table has composite PK. DB-level FK PROHIBITED
-    --    per Naming_Conventions.docx §Facts rule 2.
-    --  NO FK constraint to CE_PRODUCTS_SCD (product_id):
-    --    Same reason as above. Logical FK only.
 );
 
-COMMENT ON TABLE  bl_3nf.ce_sales                  IS 'Fact table - 3NF layer. One row per product line item per sales transaction (grain). Append-only incremental load. No default row. Hard FKs to SCD0/1 dims; LOGICAL FK only to SCD2 dims (CE_CUSTOMERS_SCD, CE_PRODUCTS_SCD) - no DB constraint per naming convention.';
+COMMENT ON TABLE  bl_3nf.ce_sales                  IS 'Fact table - 3NF layer. One row per product line item per sales transaction (grain). Append-only incremental load. No default row. Hard FKs to SCD0/1 dims; LOGICAL FK only to SCD2 dims (CE_CUSTOMERS_SCD, CE_PRODUCTS_SCD) - no DB constraint.';
 COMMENT ON COLUMN bl_3nf.ce_sales.sale_id          IS 'Surrogate PK - generated by bl_3nf.seq_ce_sales.';
 COMMENT ON COLUMN bl_3nf.ce_sales.sale_src_id      IS 'Natural key - bill_id (SA_RETAIL) / payment_id (SA_ECOM). Unique per source_system.';
+COMMENT ON COLUMN bl_3nf.ce_sales.event_dt         IS 'Transaction date. Denormalized for query convenience alongside date_id FK.';
 COMMENT ON COLUMN bl_3nf.ce_sales.date_id          IS 'FK → CE_DATES. Transaction date surrogate key.';
 COMMENT ON COLUMN bl_3nf.ce_sales.customer_id      IS 'Logical FK → CE_CUSTOMERS_SCD (no DB constraint). COALESCE to -1 if lookup fails. References current or historical version per transaction date.';
 COMMENT ON COLUMN bl_3nf.ce_sales.employee_id      IS 'FK → CE_EMPLOYEES. -1 via COALESCE if employee unknown.';
@@ -712,6 +636,18 @@ COMMENT ON COLUMN bl_3nf.ce_sales.ta_update_dt     IS 'Technical: last update da
 COMMENT ON COLUMN bl_3nf.ce_sales.source_system    IS 'Source triplet: SA_RETAIL / SA_ECOM.';
 COMMENT ON COLUMN bl_3nf.ce_sales.source_entity    IS 'Source triplet: SRC_RETAIL_SALES / SRC_ECOM_SALES.';
 
+-- ============================================================
+-- INDEXES - Performance indexes for ETL join patterns UNIQUE
+-- constraints already create implicit indexes on NK columns.
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_ce_customers_scd_active
+    ON bl_3nf.ce_customers_scd (customer_src_id, is_active)
+    WHERE is_active = 'Y';
+
+CREATE INDEX IF NOT EXISTS idx_ce_products_scd_active
+    ON bl_3nf.ce_products_scd (product_src_id, is_active)
+    WHERE is_active = 'Y';
 
 -- ============================================================
 -- VERIFICATION - Check all 12 tables were created successfully
@@ -719,26 +655,48 @@ COMMENT ON COLUMN bl_3nf.ce_sales.source_entity    IS 'Source triplet: SRC_RETAI
 
 DO $$
 DECLARE
-    v_count     INTEGER;
-    v_expected  INTEGER := 12;
+    v_tbl         TEXT;
+    v_missing     TEXT    := '';
+    v_found_count INTEGER := 0;
+    v_expected    TEXT[]  := ARRAY[
+        'ce_dates', 'ce_store_zones', 'ce_payment_types',
+        'ce_product_top_categories', 'ce_product_categories',
+        'ce_product_subcategories', 'ce_locations',
+        'ce_employees', 'ce_stores',
+        'ce_customers_scd', 'ce_products_scd', 'ce_sales'
+    ];
 BEGIN
-    SELECT COUNT(*)
-    INTO   v_count
-    FROM   information_schema.tables
-    WHERE  table_schema = 'bl_3nf'
-      AND  table_type   = 'BASE TABLE';
-
     RAISE NOTICE '==============================================';
-    RAISE NOTICE 'BL_3NF tables created: % / % expected.', v_count, v_expected;
+    RAISE NOTICE 'BL_3NF TABLE VERIFICATION';
     RAISE NOTICE '==============================================';
 
-    IF v_count < v_expected THEN
-        RAISE WARNING
-            'Expected % tables in bl_3nf, found %. '
-            'Check for creation errors above.',
-            v_expected, v_count;
+    FOREACH v_tbl IN ARRAY v_expected
+    LOOP
+        IF EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE  table_schema = 'bl_3nf'
+              AND  table_name   = v_tbl
+              AND  table_type   = 'BASE TABLE'
+        ) THEN
+            v_found_count := v_found_count + 1;
+            RAISE NOTICE '  [OK]      bl_3nf.%', v_tbl;
+        ELSE
+            v_missing := v_missing || v_tbl || ', ';
+            RAISE WARNING '  [MISSING] bl_3nf.%', v_tbl;
+        END IF;
+    END LOOP;
+
+    RAISE NOTICE '----------------------------------------------';
+    RAISE NOTICE '  Verified: % / % tables present.',
+                 v_found_count, array_length(v_expected, 1);
+
+    IF v_missing <> '' THEN
+        v_missing := LEFT(v_missing, LENGTH(v_missing) - 2);
+        RAISE WARNING 'MISSING tables: [%]. Check errors above.', v_missing;
     ELSE
-        RAISE NOTICE 'All % BL_3NF tables present. DDL completed successfully.', v_count;
+        RAISE NOTICE '  All 12 BL_3NF tables verified OK.';
     END IF;
+
+    RAISE NOTICE '==============================================';
 END;
 $$;
