@@ -15,7 +15,6 @@
 --
 
 -- Tables requiring default rows (with NOT EXISTS guard + COMMIT):
--- CE_DATES - default row (DATE_ID = -1)
 -- CE_PAYMENT_TYPES - default row (PAYMENT_TYPE_ID = -1)
 -- CE_STORE_ZONES - default row (STORE_ZONE_ID = -1)
 -- CE_PRODUCT_TOP_CATEGORIES - default row (PRODUCT_TOP_CATEGORY_ID = -1)
@@ -37,71 +36,13 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1.1  CE_DATES - default row
---      PK: date_id = -1
---      All numeric fields (SMALLINT): -1
---      Text columns: 'n/a'
---      Date columns: DATE '1900-01-01'
---      No TA_UPDATE_DT: SCD Type 0 (immutable)
--- ------------------------------------------------------------
-
-BEGIN;
-
-INSERT INTO bl_3nf.ce_dates (
-    date_id,
-    date_src_id,
-    full_dt,
-    day_of_week_num,
-    day_of_week_desc,
-    is_weekend,
-    day_of_month_num,
-    week_num,
-    month_num,
-    month_desc,
-    quarter_num,
-    year_num,
-    ta_insert_dt,
-    source_system,
-    source_entity
-)
-SELECT
-    -1,          
-    'n/a',       
-    DATE '1900-01-01', 
-    -1,          
-    'n/a',       
-    -1,          
-    -1,          
-    -1,          
-    -1,          
-    'n/a',       
-    -1,          
-    -1,          
-    DATE '1900-01-01', 
-    'MANUAL',    
-    'MANUAL'     
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM   bl_3nf.ce_dates
-    WHERE  date_id = -1
-);
-
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM bl_3nf.ce_dates WHERE date_id = -1) THEN
-        RAISE NOTICE '[OK] bl_3nf.ce_dates          – default row (id=-1) is present.';
-    ELSE
-        RAISE EXCEPTION '[FAIL] bl_3nf.ce_dates – default row (id=-1) NOT found after INSERT.';
-    END IF;
-END;
-$$;
-
--- ------------------------------------------------------------
 -- 1.2  CE_STORE_ZONES - default row
 --      PK: store_zone_id = -1
 --      No TA_UPDATE_DT: SCD Type 0
 --      CASE NOTE: store_zone_src_id = 'n/a' (lowercase).
 -- ------------------------------------------------------------
+BEGIN;
+
 INSERT INTO bl_3nf.ce_store_zones (
     store_zone_id,
     store_zone_src_id,
@@ -592,7 +533,7 @@ COMMIT;
 DO $$
 DECLARE
     v_total    INTEGER := 0;
-    v_expected INTEGER := 11;
+    v_expected INTEGER := 10;
     v_missing  TEXT    := '';
     v_ok       BOOLEAN;
 BEGIN
@@ -601,11 +542,6 @@ BEGIN
     RAISE NOTICE '==============================================';
 
     -- SCD Type 0
-    SELECT EXISTS(SELECT 1 FROM bl_3nf.ce_dates WHERE date_id = -1)
-        INTO v_ok;
-    IF v_ok THEN v_total := v_total + 1; RAISE NOTICE '  [OK] ce_dates';
-    ELSE v_missing := v_missing || 'ce_dates, '; RAISE WARNING '  [MISSING] ce_dates'; END IF;
-
     SELECT EXISTS(SELECT 1 FROM bl_3nf.ce_store_zones WHERE store_zone_id = -1)
         INTO v_ok;
     IF v_ok THEN v_total := v_total + 1; RAISE NOTICE '  [OK] ce_store_zones';

@@ -42,7 +42,6 @@ BEGIN
     -- Definition of all the sequences
     FOR v_seq IN
         SELECT * FROM (VALUES
-            ('seq_ce_dates'),
             ('seq_ce_store_zones'),
             ('seq_ce_payment_types'),
             ('seq_ce_product_top_categories'),
@@ -90,9 +89,8 @@ DO $$
      v_missing     TEXT    := '';
      v_found_count INTEGER := 0;
  
-     -- Canonical list of all 12 expected sequences:
+     -- Canonical list of all 11 expected sequences:
      v_expected    TEXT[]  := ARRAY[
-         'seq_ce_dates',
          'seq_ce_store_zones',
          'seq_ce_payment_types',
          'seq_ce_product_top_categories',
