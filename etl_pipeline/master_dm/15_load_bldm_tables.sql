@@ -5,7 +5,6 @@
 -- SOURCE LAYER:  BL_3NF (bl_3nf.ce_* tables)
 --
 -- LOAD ORDER (respects FK dependencies):
---   1. DIM_TIME_DAY          ← bl_3nf.ce_dates
 --   2. DIM_PAYMENT_TYPES     ← bl_3nf.ce_payment_types
 --   3. DIM_EMPLOYEES         ← bl_3nf.ce_employees
 --                               + bl_3nf.ce_locations (flatten)
@@ -23,73 +22,6 @@
 --   7. FCT_SALES_DD          ← bl_3nf.ce_sales
 --                               + lookup to all 6 DIM tables above
 -- ============================================================
-
-
--- ============================================================
--- LOAD 1 - DIM_TIME_DAY
---          SCD Type 0 - append only, never update.
---          Source: bl_3nf.ce_dates
---          NK:     date_src_id (YYYYMMDD string)
--- ============================================================
-
-BEGIN;
-
-INSERT INTO bl_dm.dim_time_day (
-    date_surr_id,
-    date_src_id,
-    full_dt,
-    day_of_week_num,
-    day_of_week_desc,
-    is_weekend,
-    day_of_month_num,
-    week_num,
-    month_num,
-    month_desc,
-    quarter_num,
-    year_num,
-    ta_insert_dt,
-    source_system,
-    source_entity
-)
-SELECT
-    nextval('bl_dm.seq_dim_time_day'),
-    src.date_src_id,
-    src.full_dt,
-    src.day_of_week_num,
-    src.day_of_week_desc,
-    src.is_weekend,
-    src.day_of_month_num,
-    src.week_num,
-    -- VARCHAR(3): LPAD ensures zero-padded '01'–'12'; fits VARCHAR(3)
-    LPAD(src.month_num::TEXT, 2, '0'),
-    src.month_desc,
-    -- VARCHAR(3): quarter as single digit string '1'–'4'; fits VARCHAR(3)
-    src.quarter_num::TEXT,
-    -- VARCHAR(4): year as 4-digit 'YYYY' string; fits VARCHAR(4)
-    src.year_num::TEXT,
-    CURRENT_DATE,
-    'BL_3NF',
-    'CE_DATES'
-FROM bl_3nf.ce_dates src
-WHERE src.date_id > 0   -- skip default row
-  AND NOT EXISTS (
-      SELECT 1
-      FROM   bl_dm.dim_time_day tgt
-      WHERE  tgt.date_src_id = src.date_src_id
-  );
-
-DO $$
-DECLARE v_cnt INTEGER;
-BEGIN
-    SELECT COUNT(*) INTO v_cnt
-    FROM   bl_dm.dim_time_day
-    WHERE  date_surr_id > 0;
-    RAISE NOTICE '[OK] bl_dm.dim_time_day loaded. Business rows (id>0): %', v_cnt;
-END;
-$$;
-
-COMMIT;
-
 
 -- ============================================================
 -- LOAD 2 - DIM_PAYMENT_TYPES
@@ -939,12 +871,11 @@ COMMIT;
 
 
 -- ============================================================
--- FINAL VERIFICATION - Row counts across all 7 BL_DM tables
+-- FINAL VERIFICATION - Row counts across all 6 BL_DM tables
 -- ============================================================
 
 DO $$
 DECLARE
-    v_time_day      INTEGER;
     v_pay_types     INTEGER;
     v_employees     INTEGER;
     v_stores        INTEGER;
@@ -954,8 +885,6 @@ DECLARE
     v_fct_ecom      INTEGER;
     v_fct_total     INTEGER;
 BEGIN
-    SELECT COUNT(*) INTO v_time_day
-    FROM bl_dm.dim_time_day      WHERE date_surr_id         > 0;
 
     SELECT COUNT(*) INTO v_pay_types
     FROM bl_dm.dim_payment_types WHERE payment_type_surr_id > 0;
@@ -985,7 +914,6 @@ BEGIN
     RAISE NOTICE ' BL_DM INCREMENTAL LOAD - FINAL ROW COUNT SUMMARY';
     RAISE NOTICE '=================================================================';
     RAISE NOTICE '  GROUP 1 - SCD Type 0:';
-    RAISE NOTICE '    dim_time_day             business rows : %', v_time_day;
     RAISE NOTICE '    dim_payment_types        business rows : %', v_pay_types;
     RAISE NOTICE '-----------------------------------------------------------------';
     RAISE NOTICE '  GROUP 2 - SCD Type 1:';
