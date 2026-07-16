@@ -8,7 +8,7 @@
 --           SA_ECOM   (sa_ecom.src_ecom_sales)
 --
 -- SCD TYPE SUMMARY (per Business_Template.docx §2.2):
---   SCD Type 0 : CE_DATES, CE_PAYMENT_TYPES, CE_STORE_ZONES
+--   SCD Type 0 : CE_PAYMENT_TYPES, CE_STORE_ZONES
 --                → immutable reference data, never modified
 --   SCD Type 1 : CE_LOCATIONS, CE_PRODUCT_TOP_CATEGORIES,
 --                CE_PRODUCT_CATEGORIES, CE_PRODUCT_SUBCATEGORIES,
@@ -37,7 +37,7 @@ COMMENT ON SCHEMA bl_3nf IS
     'CE_PRODUCTS_SCD (SCD2), CE_EMPLOYEES (SCD1), CE_STORES (SCD1), '
     'CE_LOCATIONS (SCD1), CE_PRODUCT_SUBCATEGORIES (SCD1), '
     'CE_PRODUCT_CATEGORIES (SCD1), CE_PRODUCT_TOP_CATEGORIES (SCD1), '
-    'CE_DATES (SCD0), CE_PAYMENT_TYPES (SCD0), CE_STORE_ZONES (SCD0). '
+    'CE_PAYMENT_TYPES (SCD0), CE_STORE_ZONES (SCD0). '
     'All dimension/reference tables contain a default row (ID = -1). '
     'SCD Type 2 tables use composite PK (_ID + START_DT). '
     'No DB-level FK constraints from CE_SALES to SCD2 tables.';

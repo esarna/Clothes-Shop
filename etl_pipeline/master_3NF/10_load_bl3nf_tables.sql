@@ -1,7 +1,6 @@
 -- DML - Incremental load scripts for all BL_3NF tables (rerunnable, no duplicates)
 
 -- Load order (respects FK dependencies):
--- CE_DATES - from sa_retail.src_retail_sales UNION sa_ecom.src_ecom_sales (transaction_date)
 -- CE_PAYMENT_TYPES - from UNION of both src_ tables (payment_method / payment_type)
 -- CE_STORE_ZONES - from sa_retail.src_retail_sales (zone_code) + manual 'N/A' for ecom
 -- CE_PRODUCT_TOP_CATEGORIES - from sa_retail.src_retail_sales (top_category); 'N/A' for ecom
@@ -63,91 +62,6 @@
 --           Append-only: INSERT new NKs, never UPDATE.
 --           No TA_UPDATE_DT column on these tables.
 -- ============================================================
-
--- ------------------------------------------------------------
--- 1.1  CE_DATES
---      Sources: transaction_date from both SA_RETAIL + SA_ECOM
---      NK:      TO_CHAR(transaction_date, 'YYYYMMDD')
---      Guard:   NOT EXISTS on date_src_id
---      Dedup:   UNION of both sources (distinct dates only)
--- ------------------------------------------------------------
-
-BEGIN;
-
-INSERT INTO bl_3nf.ce_dates (
-    date_id,
-    date_src_id,
-    full_dt,
-    day_of_week_num,
-    day_of_week_desc,
-    is_weekend,
-    day_of_month_num,
-    week_num,
-    month_num,
-    month_desc,
-    quarter_num,
-    year_num,
-    ta_insert_dt,
-    source_system,
-    source_entity
-)
-SELECT
-    nextval('bl_3nf.seq_ce_dates'),
-    TO_CHAR(src.full_dt, 'YYYYMMDD'),
-    src.full_dt,
-    EXTRACT(ISODOW FROM src.full_dt)::SMALLINT,
-    TO_CHAR(src.full_dt, 'FMDay'),
-    CASE WHEN EXTRACT(ISODOW FROM src.full_dt) IN (6, 7)
-         THEN 1::SMALLINT ELSE 0::SMALLINT END,
-    EXTRACT(DAY   FROM src.full_dt)::SMALLINT,
-    EXTRACT(WEEK  FROM src.full_dt)::SMALLINT,
-    EXTRACT(MONTH FROM src.full_dt)::SMALLINT,
-    TO_CHAR(src.full_dt, 'FMMonth'),
-    EXTRACT(QUARTER FROM src.full_dt)::SMALLINT,
-    EXTRACT(YEAR  FROM src.full_dt)::SMALLINT,
-    CURRENT_DATE,
-    src.source_system,
-    src.source_entity
-FROM (
-    SELECT DISTINCT ON (TO_CHAR(full_dt, 'YYYYMMDD'))
-        full_dt,
-        source_system,
-        source_entity
-    FROM (
-        SELECT DISTINCT
-            transaction_date        AS full_dt,
-            'SA_RETAIL'             AS source_system,
-            'SRC_RETAIL_SALES'      AS source_entity
-        FROM sa_retail.src_retail_sales
-        WHERE transaction_date IS NOT NULL
-
-        UNION ALL
-
-        SELECT DISTINCT
-            transaction_date        AS full_dt,
-            'SA_ECOM'               AS source_system,
-            'SRC_ECOM_SALES'        AS source_entity
-        FROM sa_ecom.src_ecom_sales
-        WHERE transaction_date IS NOT NULL
-    ) combined
-    ORDER BY TO_CHAR(full_dt, 'YYYYMMDD'), source_system
-) src
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM   bl_3nf.ce_dates tgt
-    WHERE  tgt.date_src_id = TO_CHAR(src.full_dt, 'YYYYMMDD')
-);
-
-DO $$
-DECLARE v_cnt INTEGER;
-BEGIN
-    SELECT COUNT(*) INTO v_cnt FROM bl_3nf.ce_dates WHERE date_id > 0;
-    RAISE NOTICE '[OK] bl_3nf.ce_dates loaded. Business rows (id>0): %', v_cnt;
-END;
-$$;
-
-COMMIT;
-
 
 -- ------------------------------------------------------------
 -- 1.2  CE_STORE_ZONES
@@ -1704,7 +1618,7 @@ SELECT
     TRIM(r.bill_id),
     -- DATE FK: lookup by NK = TO_CHAR(transaction_date,'YYYYMMDD')
     r.transaction_date,
-    COALESCE(d.date_id,          -1),
+    COALESCE(d.date_surr_id, -1)  AS date_id,
     -- CUSTOMER FK (SCD2 logical): current active row for this NK
     COALESCE(cust.customer_id,   -1),
     -- EMPLOYEE FK (SCD1 hard):
@@ -1726,8 +1640,8 @@ SELECT
     'SRC_RETAIL_SALES'
 FROM sa_retail.src_retail_sales r
 -- ── Dimension lookups (all LEFT JOIN) ───────
-LEFT JOIN bl_3nf.ce_dates d
-       ON d.date_src_id        = TO_CHAR(r.transaction_date, 'YYYYMMDD')
+LEFT JOIN bl_dm.dim_time_day d
+        ON d.date_src_id = TO_CHAR(r.transaction_date, 'YYYYMMDD')
 -- SCD2 customer lookup: join on NK + is_active = 'Y' (current version)
 LEFT JOIN bl_3nf.ce_customers_scd cust
        ON cust.customer_src_id = TRIM(r.customer_id)
@@ -1795,7 +1709,7 @@ SELECT
     TRIM(e.payment_id),
     e.transaction_date, 
     -- DATE FK
-    COALESCE(d.date_id,          -1),
+    COALESCE(d.date_surr_id, -1)  AS date_id,
     -- CUSTOMER FK (SCD2 logical): user_id → current active version
     COALESCE(cust.customer_id,   -1),
     -- EMPLOYEE FK (SCD1 hard): ee_id
@@ -1817,8 +1731,8 @@ SELECT
     'SRC_ECOM_SALES'
 FROM sa_ecom.src_ecom_sales e
 -- ── Dimension lookups (all LEFT JOIN) ────────────────────────
-LEFT JOIN bl_3nf.ce_dates d
-       ON d.date_src_id        = TO_CHAR(e.transaction_date, 'YYYYMMDD')
+LEFT JOIN bl_dm.dim_time_day d
+        ON d.date_src_id = TO_CHAR(e.transaction_date, 'YYYYMMDD')
 -- SCD2 customer lookup
 LEFT JOIN bl_3nf.ce_customers_scd cust
        ON cust.customer_src_id = TRIM(e.user_id)
@@ -1866,7 +1780,6 @@ COMMIT;
 
 DO $$
 DECLARE
-    v_dates             INTEGER;
     v_store_zones       INTEGER;
     v_payment_types     INTEGER;
     v_top_cats          INTEGER;
@@ -1881,7 +1794,6 @@ DECLARE
     v_sales_ecom        INTEGER;
     v_sales_total       INTEGER;
 BEGIN
-    SELECT COUNT(*) INTO v_dates          FROM bl_3nf.ce_dates                  WHERE date_id                > 0;
     SELECT COUNT(*) INTO v_store_zones    FROM bl_3nf.ce_store_zones             WHERE store_zone_id           > 0;
     SELECT COUNT(*) INTO v_payment_types  FROM bl_3nf.ce_payment_types           WHERE payment_type_id         > 0;
     SELECT COUNT(*) INTO v_top_cats       FROM bl_3nf.ce_product_top_categories  WHERE product_top_category_id > 0;
@@ -1900,7 +1812,6 @@ BEGIN
     RAISE NOTICE ' BL_3NF INCREMENTAL LOAD - FINAL ROW COUNT SUMMARY';
     RAISE NOTICE '=================================================================';
     RAISE NOTICE '  GROUP 1 - SCD Type 0:';
-    RAISE NOTICE '    ce_dates                    business rows: %',  v_dates;
     RAISE NOTICE '    ce_store_zones              business rows: %',  v_store_zones;
     RAISE NOTICE '    ce_payment_types            business rows: %',  v_payment_types;
     RAISE NOTICE '-----------------------------------------------------------------';
