@@ -10,7 +10,7 @@
 --   (bill_id / payment_id + product_code).
 --
 -- SCD TYPE SUMMARY:
---   SCD Type 0 : DIM_TIME_DAY, DIM_PAYMENT_TYPES
+--   SCD Type 0 :   DIM_PAYMENT_TYPES
 --                → immutable reference data, never modified
 --                → no TA_UPDATE_DT column
 --   SCD Type 1 : DIM_EMPLOYEES, DIM_STORES
@@ -50,7 +50,6 @@ COMMENT ON SCHEMA bl_dm IS
     'Data source: BL_3NF layer (bl_3nf.ce_* tables). '
     'Tables: '
     'FCT_SALES_DD (fact, grain: one product line item per transaction), '
-    'DIM_TIME_DAY (SCD0 - calendar), '
     'DIM_PAYMENT_TYPES (SCD0 - junk dimension), '
     'DIM_EMPLOYEES (SCD1 - flattened address from CE_LOCATIONS), '
     'DIM_STORES (SCD1 - flattened zone + address), '

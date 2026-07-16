@@ -29,75 +29,6 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1.1  DIM_TIME_DAY - default row
---      PK: date_surr_id = -1
---      INTEGER fields (day_of_week_num, is_weekend,
---        day_of_month_num, week_num):  -1 
---      VARCHAR date-part fields
---        (month_num, quarter_num, year_num): 'n/a'
---      DATE full_dt: DATE '1900-01-01'
---      No TA_UPDATE_DT - SCD Type 0
--- ------------------------------------------------------------
-
-BEGIN;
-
-INSERT INTO bl_dm.dim_time_day (
-    date_surr_id,
-    date_src_id,
-    full_dt,
-    day_of_week_num,
-    day_of_week_desc,
-    is_weekend,
-    day_of_month_num,
-    week_num,
-    month_num,
-    month_desc,
-    quarter_num,
-    year_num,
-    ta_insert_dt,
-    source_system,
-    source_entity
-)
-SELECT
-    -1,
-    'n/a',
-    DATE '1900-01-01',
-    -1,
-    'n/a',
-    -1,
-    -1,
-    -1,
-    'n/a',
-    'n/a',
-    'n/a',
-    'n/a',
-    DATE '1900-01-01',
-    'MANUAL',
-    'MANUAL'
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM   bl_dm.dim_time_day
-    WHERE  date_surr_id = -1
-);
-
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM   bl_dm.dim_time_day
-        WHERE  date_surr_id = -1
-    ) THEN
-        RAISE NOTICE '[OK] bl_dm.dim_time_day      – default row (id=-1) is present.';
-    ELSE
-        RAISE EXCEPTION '[FAIL] bl_dm.dim_time_day – default row (id=-1) NOT found after INSERT.';
-    END IF;
-END;
-$$;
-
-COMMIT;
-
-
--- ------------------------------------------------------------
 -- 1.2  DIM_PAYMENT_TYPES - default row
 --      PK: payment_type_surr_id = -1
 --      No TA_UPDATE_DT - SCD Type 0
@@ -439,7 +370,7 @@ COMMIT;
 DO $$
 DECLARE
     v_total    INTEGER := 0;
-    v_expected INTEGER := 6;
+    v_expected INTEGER := 5;
     v_missing  TEXT    := '';
     v_ok       BOOLEAN;
 BEGIN
@@ -448,17 +379,6 @@ BEGIN
     RAISE NOTICE '==============================================';
 
     -- Group 1 - SCD Type 0
-    SELECT EXISTS(
-        SELECT 1 FROM bl_dm.dim_time_day
-        WHERE date_surr_id = -1
-    ) INTO v_ok;
-    IF v_ok THEN
-        v_total := v_total + 1;
-        RAISE NOTICE '  [OK] dim_time_day';
-    ELSE
-        v_missing := v_missing || 'dim_time_day, ';
-        RAISE WARNING '  [MISSING] dim_time_day';
-    END IF;
 
     SELECT EXISTS(
         SELECT 1 FROM bl_dm.dim_payment_types

@@ -8,7 +8,6 @@
 --   ┌────────────────────────────────────────────┬──────────────────────────────────────────┐
 --   │ Sequence name                              │ Used in table / column                   │
 --   ├────────────────────────────────────────────┼──────────────────────────────────────────┤
---   │ bl_dm.seq_dim_time_day                     │ DIM_TIME_DAY.DATE_SURR_ID                │
 --   │ bl_dm.seq_dim_payment_types                │ DIM_PAYMENT_TYPES.PAYMENT_TYPE_SURR_ID   │
 --   │ bl_dm.seq_dim_employees                    │ DIM_EMPLOYEES.EMPLOYEE_SURR_ID           │
 --   │ bl_dm.seq_dim_customers_scd                │ DIM_CUSTOMERS_SCD.CUSTOMER_SURR_ID       │
@@ -30,7 +29,6 @@ DECLARE
 BEGIN
     FOR v_seq IN
         SELECT * FROM (VALUES
-            ('seq_dim_time_day'),
             ('seq_dim_payment_types'),
             ('seq_dim_employees'),
             ('seq_dim_customers_scd'),
@@ -74,7 +72,6 @@ DECLARE
     v_found_count INTEGER := 0;
 
     v_expected    TEXT[]  := ARRAY[
-        'seq_dim_time_day',
         'seq_dim_payment_types',
         'seq_dim_employees',
         'seq_dim_customers_scd',
