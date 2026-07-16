@@ -599,7 +599,7 @@ CREATE TABLE bl_3nf.ce_sales (
         -- GRAIN & NK RATIONALE:
     --   Grain = one product line item per sales transaction.
     --   One bill_id/payment_id can contain multiple products (basket).
-    --   SALE_SRC_ID alone is not unique — same transaction ID reappears
+    --   SALE_SRC_ID alone is not unique - same transaction ID reappears
     --   for each product in the basket. The 3NF rule requires no derived
     --   concatenated keys in this layer; the composite unique constraint
     --   (sale_src_id + source_system + product_id) enforces line-item
