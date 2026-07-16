@@ -103,7 +103,7 @@ CREATE TABLE sa_retail.src_retail_sales (
     min_amount              DECIMAL(12,2),  
 
     -- ----- COST → CE_SALES (KPI) + FCT_SALES_DD.FCT_UNIT_COST -----
-    cost                    DECIMAL(12,2),
+    cost                    DECIMAL(18,8),
 
     -- ----- TRANSACTION → CE_SALES + FCT_SALES_DD -----
     bill_id                 VARCHAR(50),    
@@ -157,7 +157,7 @@ CREATE TABLE sa_retail.src_retail_sales (
     employee_postal_code    VARCHAR(20),
 
     -- ----- TECHNICAL ATTRIBUTES -----
-    ta_insert_dt            DATE NOT NULL DEFAULT CURRENT_DATE
+    ta_insert_dt            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sa_retail.src_retail_sales IS
@@ -184,10 +184,7 @@ CREATE TABLE sa_ecom.src_ecom_sales (
     product_type                VARCHAR(100), 
 
     -- ----- COST → FCT_SALES_DD.FCT_UNIT_COST -----
-    --    NOTE: Cost in ecom ≈ 1.0 → appears to be a coefficient/ratio,
-    --    NOT a monetary value. FCT_UNIT_COST for ecom = NULL in BL_DM.
-    --    Column kept here for raw data preservation and audit.
-    cost                        DECIMAL(12,2),
+    cost                        DECIMAL(18,8),
 
     -- ----- TRANSACTION → CE_SALES + FCT_SALES_DD -----
     payment_id                  VARCHAR(50),   
@@ -235,7 +232,7 @@ CREATE TABLE sa_ecom.src_ecom_sales (
     ee_phone_number             VARCHAR(50),
 
     -- ----- TECHNICAL ATTRIBUTES -----
-    ta_insert_dt                DATE NOT NULL DEFAULT CURRENT_DATE
+    ta_insert_dt            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sa_ecom.src_ecom_sales IS

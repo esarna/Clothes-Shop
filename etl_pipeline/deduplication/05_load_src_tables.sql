@@ -36,8 +36,9 @@
 
 -- ============================================================
 -- LOAD 1: sa_retail.src_retail_sales
--- Grain (dedup key): bill_id + product_code
---   = one line item per product per bill
+ -- Deduplication: full row duplicates only (DISTINCT *)
+ -- Grain filtering (bill_id + product_code NOT NULL) preserved.
+ -- Business grain deduplication happens in BL_3NF layer.
 -- ============================================================
 
 TRUNCATE TABLE sa_retail.src_retail_sales;
@@ -97,7 +98,7 @@ SELECT
     -- DECIMAL cast with numeric guard:
     CASE
         WHEN TRIM(cost) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(cost)::DECIMAL(12,2)
+        THEN TRIM(cost)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS cost,
 
@@ -174,29 +175,17 @@ SELECT
     NULLIF(TRIM(employee_phone_number),  '')                        AS employee_phone_number,
 
     -- ----- TECHNICAL -----
-    CURRENT_DATE                                                    AS ta_insert_dt
+    CURRENT_TIMESTAMP                                                AS ta_insert_dt
 
-FROM (
+ FROM (
     -- --------------------------------------------------------
     -- (A) PHYSICAL DEDUPLICATION within retail source
-    --     Grain key: bill_id + product_code
-    --     (one product line per bill = defined grain in Business Template)
-    --     ROW_NUMBER keeps first occurrence when duplicates exist.
     -- --------------------------------------------------------
-    SELECT *,
-        ROW_NUMBER() OVER (
-            PARTITION BY
-                NULLIF(TRIM(bill_id),      ''),
-                NULLIF(TRIM(product_code), '')
-            ORDER BY
-                NULLIF(TRIM(bill_id),      ''),
-                NULLIF(TRIM(product_code), '')
-        ) AS rn
-    FROM sa_retail.ext_retail_sales
-    WHERE NULLIF(TRIM(bill_id),      '') IS NOT NULL
-      AND NULLIF(TRIM(product_code), '') IS NOT NULL
-) deduped
-WHERE rn = 1;
+     SELECT DISTINCT *
+     FROM sa_retail.ext_retail_sales
+     WHERE NULLIF(TRIM(bill_id),      '') IS NOT NULL
+       AND NULLIF(TRIM(product_code), '') IS NOT NULL
+ ) deduped;
 
 
 -- ============================================================
@@ -248,7 +237,7 @@ SELECT
 
     CASE
         WHEN TRIM(cost) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(cost)::DECIMAL(12,2)
+        THEN TRIM(cost)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS cost,
 
@@ -315,24 +304,14 @@ SELECT
     NULLIF(TRIM(ee_phone_number),    '')                            AS ee_phone_number,
 
     -- ----- TECHNICAL -----
-    CURRENT_DATE                                                    AS ta_insert_dt
+    CURRENT_TIMESTAMP                                               AS ta_insert_dt
 
-FROM (
+ FROM (
     -- --------------------------------------------------------
     -- (A) PHYSICAL DEDUPLICATION within ecom source
-    --     Grain key: payment_id + product_code
     -- --------------------------------------------------------
-    SELECT *,
-        ROW_NUMBER() OVER (
-            PARTITION BY
-                NULLIF(TRIM(payment_id),   ''),
-                NULLIF(TRIM(product_code), '')
-            ORDER BY
-                NULLIF(TRIM(payment_id),   ''),
-                NULLIF(TRIM(product_code), '')
-        ) AS rn
-    FROM sa_ecom.ext_ecom_sales
-    WHERE NULLIF(TRIM(payment_id),   '') IS NOT NULL
-      AND NULLIF(TRIM(product_code), '') IS NOT NULL
-) deduped
-WHERE rn = 1;
+     SELECT DISTINCT *
+     FROM sa_ecom.ext_ecom_sales
+     WHERE NULLIF(TRIM(payment_id),   '') IS NOT NULL
+       AND NULLIF(TRIM(product_code), '') IS NOT NULL
+ ) deduped;
