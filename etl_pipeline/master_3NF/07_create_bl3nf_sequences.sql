@@ -1,4 +1,4 @@
--- DDL — Sequences (one per table, per naming convention)
+-- DDL - Sequences (one per table, per naming convention)
 
 -- ============================================================
 -- Create all surrogate key sequences for BL_3NF CE_ tables.
@@ -26,7 +26,7 @@
 -- SCD NOTE:
 --   SCD Type 2 tables (CE_CUSTOMERS_SCD, CE_PRODUCTS_SCD) use
 --   composite PK (_ID + START_DT). Each new SCD2 version of a
---   row consumes a new surrogate key value from the sequence —
+--   row consumes a new surrogate key value from the sequence -
 --   this is correct and expected behaviour.
 --
 -- ============================================================

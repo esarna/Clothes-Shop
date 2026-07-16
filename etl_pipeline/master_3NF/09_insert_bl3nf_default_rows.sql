@@ -1,10 +1,10 @@
--- DML — Default rows for all dimension/reference tables (NOT for CE_SALES fact)
+-- DML - Default rows for all dimension/reference tables (NOT for CE_SALES fact)
 
 -- Default Row presentation and naming convention:
 -- Column Type                     Default Value   Notes
 -- ─────────────────────────────── ─────────────── ──────────────────────────────────
 -- BIGINT / SMALLINT / numeric PK  -1              Includes SMALLINT date fields
--- Text / VARCHAR                  'n/a'           Lowercase — project standard
+-- Text / VARCHAR                  'n/a'           Lowercase - project standard
 -- IS_ACTIVE (VARCHAR(1))          'Y'             Default row is always "active"
 -- START_DT                        '1900-01-01'
 -- END_DT                          '9999-12-31'
@@ -15,29 +15,29 @@
 --
 
 -- Tables requiring default rows (with NOT EXISTS guard + COMMIT):
--- CE_DATES — default row (DATE_ID = -1)
--- CE_PAYMENT_TYPES — default row (PAYMENT_TYPE_ID = -1)
--- CE_STORE_ZONES — default row (STORE_ZONE_ID = -1)
--- CE_PRODUCT_TOP_CATEGORIES — default row (PRODUCT_TOP_CATEGORY_ID = -1)
--- CE_PRODUCT_CATEGORIES — default row (PRODUCT_CATEGORY_ID = -1, PRODUCT_TOP_CATEGORY_ID = -1)
--- CE_PRODUCT_SUBCATEGORIES — default row (PRODUCT_SUBCATEGORY_ID = -1, PRODUCT_CATEGORY_ID = -1)
--- CE_LOCATIONS — default row (LOCATION_ID = -1)
--- CE_STORES — default row (STORE_ID = -1, STORE_ZONE_ID = -1, STORE_LOCATION_ID = -1)
--- CE_EMPLOYEES — default row (EMPLOYEE_ID = -1, EMPLOYEE_LOCATION_ID = -1)
--- CE_CUSTOMERS_SCD — default row (CUSTOMER_ID = -1, CUSTOMER_LOCATION_ID = -1)
--- CE_PRODUCTS_SCD — default row (PRODUCT_ID = -1, PRODUCT_SUBCATEGORY_ID = -1)
+-- CE_DATES - default row (DATE_ID = -1)
+-- CE_PAYMENT_TYPES - default row (PAYMENT_TYPE_ID = -1)
+-- CE_STORE_ZONES - default row (STORE_ZONE_ID = -1)
+-- CE_PRODUCT_TOP_CATEGORIES - default row (PRODUCT_TOP_CATEGORY_ID = -1)
+-- CE_PRODUCT_CATEGORIES - default row (PRODUCT_CATEGORY_ID = -1, PRODUCT_TOP_CATEGORY_ID = -1)
+-- CE_PRODUCT_SUBCATEGORIES - default row (PRODUCT_SUBCATEGORY_ID = -1, PRODUCT_CATEGORY_ID = -1)
+-- CE_LOCATIONS - default row (LOCATION_ID = -1)
+-- CE_STORES - default row (STORE_ID = -1, STORE_ZONE_ID = -1, STORE_LOCATION_ID = -1)
+-- CE_EMPLOYEES - default row (EMPLOYEE_ID = -1, EMPLOYEE_LOCATION_ID = -1)
+-- CE_CUSTOMERS_SCD - default row (CUSTOMER_ID = -1, CUSTOMER_LOCATION_ID = -1)
+-- CE_PRODUCTS_SCD - default row (PRODUCT_ID = -1, PRODUCT_SUBCATEGORY_ID = -1)
 --
 -- ============================================================
 
 
 -- ============================================================
--- GROUP 1 — SCD TYPE 0: Immutable reference tables
+-- GROUP 1 - SCD TYPE 0: Immutable reference tables
 --           No TA_UPDATE_DT column (rows never modified).
 --           SOURCE_SYSTEM = 'MANUAL', SOURCE_ENTITY = 'MANUAL'
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1.1  CE_DATES — default row
+-- 1.1  CE_DATES - default row
 --      PK: date_id = -1
 --      All numeric fields (SMALLINT): -1
 --      Text columns: 'n/a'
@@ -97,7 +97,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 1.2  CE_STORE_ZONES — default row
+-- 1.2  CE_STORE_ZONES - default row
 --      PK: store_zone_id = -1
 --      No TA_UPDATE_DT: SCD Type 0
 --      CASE NOTE: store_zone_src_id = 'n/a' (lowercase).
@@ -134,7 +134,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 1.3  CE_PAYMENT_TYPES — default row
+-- 1.3  CE_PAYMENT_TYPES - default row
 --      PK: payment_type_id = -1
 --      No TA_UPDATE_DT: SCD Type 0
 --      CASE NOTE: payment_type_src_id = 'n/a' (lowercase).
@@ -174,14 +174,14 @@ COMMIT;
 
 
 -- ============================================================
--- GROUP 2 — SCD TYPE 1: Product category hierarchy
+-- GROUP 2 - SCD TYPE 1: Product category hierarchy
 --           Inserted top-down: parent -1 row before child -1 row
 --           to satisfy FK constraints.
 --           All have TA_INSERT_DT + TA_UPDATE_DT.
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 2.1  CE_PRODUCT_TOP_CATEGORIES — default row
+-- 2.1  CE_PRODUCT_TOP_CATEGORIES - default row
 --      PK: product_top_category_id = -1
 --      No parent FK (top of hierarchy)
 -- ------------------------------------------------------------
@@ -222,7 +222,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 2.2  CE_PRODUCT_CATEGORIES — default row
+-- 2.2  CE_PRODUCT_CATEGORIES - default row
 --      PK: product_category_id = -1
 --      FK: product_top_category_id = -1  ← parent default row
 --          already inserted in step 2.1
@@ -263,7 +263,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 2.3  CE_PRODUCT_SUBCATEGORIES — default row
+-- 2.3  CE_PRODUCT_SUBCATEGORIES - default row
 --      PK: product_subcategory_id = -1
 --      FK: product_category_id = -1  ← parent default row
 --          already inserted in step 2.2
@@ -307,13 +307,13 @@ COMMIT;
 
 
 -- ============================================================
--- GROUP 3 — SCD TYPE 1: Address and store chain
+-- GROUP 3 - SCD TYPE 1: Address and store chain
 --           CE_LOCATIONS inserted first (CE_EMPLOYEES and
 --           CE_STORES both reference it via FK).
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 3.1  CE_LOCATIONS — default row
+-- 3.1  CE_LOCATIONS - default row
 --      PK: location_id = -1
 --      No parent FK
 -- ------------------------------------------------------------
@@ -360,7 +360,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 3.2  CE_EMPLOYEES — default row
+-- 3.2  CE_EMPLOYEES - default row
 --      PK: employee_id = -1
 --      FK: employee_location_id = -1  ← default row step 3.1
 -- ------------------------------------------------------------
@@ -406,7 +406,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 3.3  CE_STORES — default row
+-- 3.3  CE_STORES - default row
 --      PK: store_id = -1
 --      FK: store_zone_id     = -1  ← default row step 1.2
 --          store_location_id = -1  ← default row step 3.1
@@ -453,7 +453,7 @@ COMMIT;
 
 
 -- ============================================================
--- GROUP 4 — SCD TYPE 2: Historical dimension tables
+-- GROUP 4 - SCD TYPE 2: Historical dimension tables
 --           Composite PK = (_ID + START_DT).
 --           Default row: surrogate key = -1, start_dt = 1900-01-01
 --           end_dt = 9999-12-31, is_active = 'Y'
@@ -462,7 +462,7 @@ COMMIT;
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 4.1  CE_CUSTOMERS_SCD — default row
+-- 4.1  CE_CUSTOMERS_SCD - default row
 --      PK (composite): customer_id = -1, start_dt = '1900-01-01'
 --      FK: customer_location_id = -1  (logical FK, no DB constraint)
 -- ------------------------------------------------------------
@@ -523,7 +523,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------
--- 4.2  CE_PRODUCTS_SCD — default row
+-- 4.2  CE_PRODUCTS_SCD - default row
 --      PK (composite): product_id = -1, start_dt = '1900-01-01'
 --      FK: product_subcategory_id = -1  ← default row step 2.3
 --      product_min_amount = NULL
@@ -586,7 +586,7 @@ COMMIT;
 
 
 -- ============================================================
--- FINAL VERIFICATION — Check each default row individually
+-- FINAL VERIFICATION - Check each default row individually
 -- ============================================================
 
 DO $$

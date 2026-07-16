@@ -1413,9 +1413,12 @@ FROM (
         SELECT DISTINCT ON (TRIM(r.product_code))
             TRIM(r.product_code)                                AS product_src_id,
             UPPER(TRIM(r.subcategory))                          AS subcategory_src_id,
-            COALESCE(TRIM(r.description),   'n/a')              AS product_description,
-            COALESCE(TRIM(r.colour),        'n/a')              AS product_colour,
-            COALESCE(TRIM(r.size),          'n/a')              AS product_size,
+            CASE WHEN TRIM(r.description) IN ('NOT-CAPTURED', '') OR r.description IS NULL
+                  THEN 'n/a' ELSE TRIM(r.description) END        AS product_description,
+            CASE WHEN TRIM(r.colour)      IN ('NOT-CAPTURED', '') OR r.colour      IS NULL
+                THEN 'n/a' ELSE TRIM(r.colour)      END        AS product_colour,
+            CASE WHEN TRIM(r.size)        IN ('NOT-CAPTURED', '') OR r.size        IS NULL
+                THEN 'n/a' ELSE TRIM(r.size)        END        AS product_size,
             r.min_amount                                        AS product_min_amount
         FROM sa_retail.src_retail_sales r
         WHERE r.product_code IS NOT NULL
@@ -1492,9 +1495,12 @@ FROM (
         SELECT DISTINCT ON (TRIM(r.product_code))
             TRIM(r.product_code)                                AS product_src_id,
             UPPER(TRIM(r.subcategory))                          AS subcategory_src_id,
-            COALESCE(TRIM(r.description),   'NOT-CAPTURED')     AS product_description,
-            COALESCE(TRIM(r.colour),        'NOT-CAPTURED')     AS product_colour,
-            COALESCE(TRIM(r.size),          'NOT-CAPTURED')     AS product_size,
+            CASE WHEN TRIM(r.description) IN ('NOT-CAPTURED', '') OR r.description IS NULL
+                  THEN 'n/a' ELSE TRIM(r.description) END        AS product_description,
+            CASE WHEN TRIM(r.colour)      IN ('NOT-CAPTURED', '') OR r.colour      IS NULL
+                THEN 'n/a' ELSE TRIM(r.colour)      END        AS product_colour,
+            CASE WHEN TRIM(r.size)        IN ('NOT-CAPTURED', '') OR r.size        IS NULL
+                THEN 'n/a' ELSE TRIM(r.size)        END        AS product_size,
             r.min_amount                                        AS product_min_amount,
             'SA_RETAIL'                                         AS source_system,
             'SRC_RETAIL_SALES'                                  AS source_entity
@@ -1511,9 +1517,9 @@ FROM (
         SELECT DISTINCT ON (TRIM(e.product_code))
             TRIM(e.product_code)    AS product_src_id,
             UPPER(TRIM(e.details))  AS subcategory_src_id,
-            'NOT-CAPTURED'          AS product_description,
-            'NOT-CAPTURED'          AS product_colour,
-            'NOT-CAPTURED'          AS product_size,
+            'n/a'                   AS product_description,
+            'n/a'                   AS product_colour,
+            'n/a'                   AS product_size,
             NULL::DECIMAL(12,2)     AS product_min_amount,
             'SA_ECOM'               AS source_system,
             'SRC_ECOM_SALES'        AS source_entity
@@ -1580,9 +1586,12 @@ FROM (
         SELECT DISTINCT ON (TRIM(r.product_code))
             TRIM(r.product_code)                                AS product_src_id,
             UPPER(TRIM(r.subcategory))                          AS subcategory_src_id,
-            COALESCE(TRIM(r.description),   'n/a')              AS product_description,
-            COALESCE(TRIM(r.colour),        'n/a')              AS product_colour,
-            COALESCE(TRIM(r.size),          'n/a')              AS product_size,
+            CASE WHEN TRIM(r.description) IN ('NOT-CAPTURED', '') OR r.description IS NULL
+                  THEN 'n/a' ELSE TRIM(r.description) END        AS product_description,
+            CASE WHEN TRIM(r.colour)      IN ('NOT-CAPTURED', '') OR r.colour      IS NULL
+                THEN 'n/a' ELSE TRIM(r.colour)      END        AS product_colour,
+            CASE WHEN TRIM(r.size)        IN ('NOT-CAPTURED', '') OR r.size        IS NULL
+                THEN 'n/a' ELSE TRIM(r.size)        END        AS product_size,
             r.min_amount                                        AS product_min_amount,
             'SA_RETAIL'                                         AS source_system,
             'SRC_RETAIL_SALES'                                  AS source_entity

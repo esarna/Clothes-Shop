@@ -1,4 +1,4 @@
--- DDL — Schema creation
+-- DDL - Schema creation
 
 -- ============================================================
 -- Create the BL_3NF schema that holds all normalised 
