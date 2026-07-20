@@ -52,14 +52,11 @@
 --      No TA_UPDATE_DT - immutable rows.
 -- ------------------------------------------------------------
 
-DROP TABLE IF EXISTS bl_dm.dim_payment_types CASCADE;
-ALTER SEQUENCE IF EXISTS bl_dm.seq_dim_payment_types RESTART WITH 1;
-
-CREATE TABLE bl_dm.dim_payment_types (
+CREATE TABLE IF NOT EXISTS bl_dm.dim_payment_types (
     payment_type_surr_id    BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_dim_payment_types'),
     payment_type_src_id     VARCHAR(100)    NOT NULL,
     payment_type_name       VARCHAR(50)     NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP       NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_payment_types         PRIMARY KEY (payment_type_surr_id),
@@ -101,10 +98,7 @@ COMMENT ON COLUMN bl_dm.dim_payment_types.source_entity        IS 'Source triple
 --      TA_UPDATE_DT present - overwrite on change.
 -- ------------------------------------------------------------
 
-DROP TABLE IF EXISTS bl_dm.dim_employees CASCADE;
-ALTER SEQUENCE IF EXISTS bl_dm.seq_dim_employees RESTART WITH 1;
-
-CREATE TABLE bl_dm.dim_employees (
+CREATE TABLE IF NOT EXISTS bl_dm.dim_employees (
     employee_surr_id        BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_dim_employees'),
     employee_src_id         VARCHAR(50)     NOT NULL,
     employee_name           VARCHAR(100)    NOT NULL,
@@ -115,8 +109,8 @@ CREATE TABLE bl_dm.dim_employees (
     employee_city           VARCHAR(100)    NOT NULL,
     employee_state          VARCHAR(3)      NOT NULL,
     employee_postal_code    VARCHAR(10)     NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
-    ta_update_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP            NOT NULL,
+    ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_employees         PRIMARY KEY (employee_surr_id),
@@ -144,8 +138,8 @@ COMMENT ON COLUMN bl_dm.dim_employees.employee_address      IS 'Street address -
 COMMENT ON COLUMN bl_dm.dim_employees.employee_city         IS 'City - flattened from bl_3nf.ce_locations. Default row: ''n/a''.';
 COMMENT ON COLUMN bl_dm.dim_employees.employee_state        IS 'State code - flattened from bl_3nf.ce_locations. VARCHAR(3): fits ''n/a'' default. BT specifies CHAR(2) - overridden to fit default value convention.';
 COMMENT ON COLUMN bl_dm.dim_employees.employee_postal_code  IS 'Postal code - flattened from bl_3nf.ce_locations. Default row: ''n/a''.';
-COMMENT ON COLUMN bl_dm.dim_employees.ta_insert_dt          IS 'Technical: row creation date. Default row: DATE ''1900-01-01''.';
-COMMENT ON COLUMN bl_dm.dim_employees.ta_update_dt          IS 'Technical: last update date (SCD1 - overwrite on change). Default row: DATE ''1900-01-01''.';
+COMMENT ON COLUMN bl_dm.dim_employees.ta_insert_dt          IS 'Technical: row creation date. Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
+COMMENT ON COLUMN bl_dm.dim_employees.ta_update_dt          IS 'Technical: last update date (SCD1 - overwrite on change). Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
 COMMENT ON COLUMN bl_dm.dim_employees.source_system         IS 'Source triplet: BL_3NF or MANUAL (default row).';
 COMMENT ON COLUMN bl_dm.dim_employees.source_entity         IS 'Source triplet: CE_EMPLOYEES or MANUAL.';
 
@@ -161,10 +155,7 @@ COMMENT ON COLUMN bl_dm.dim_employees.source_entity         IS 'Source triplet: 
 --      TA_UPDATE_DT present - overwrite on change.
 -- ------------------------------------------------------------
 
-DROP TABLE IF EXISTS bl_dm.dim_stores CASCADE;
-ALTER SEQUENCE IF EXISTS bl_dm.seq_dim_stores RESTART WITH 1;
-
-CREATE TABLE bl_dm.dim_stores (
+CREATE TABLE IF NOT EXISTS bl_dm.dim_stores (
     store_surr_id       BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_dim_stores'),
     store_src_id        VARCHAR(50)     NOT NULL,
     store_channel       VARCHAR(20)     NOT NULL,
@@ -174,8 +165,8 @@ CREATE TABLE bl_dm.dim_stores (
     store_city          VARCHAR(100)    NOT NULL,
     store_state         VARCHAR(3)      NOT NULL,
     store_postal_code   VARCHAR(10)     NOT NULL,
-    ta_insert_dt        DATE            NOT NULL,
-    ta_update_dt        DATE            NOT NULL,
+    ta_insert_dt        TIMESTAMP            NOT NULL,
+    ta_update_dt        TIMESTAMP            NOT NULL,
     source_system       VARCHAR(50)     NOT NULL,
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_stores                PRIMARY KEY (store_surr_id),
@@ -203,8 +194,8 @@ COMMENT ON COLUMN bl_dm.dim_stores.store_address     IS 'Street address - flatte
 COMMENT ON COLUMN bl_dm.dim_stores.store_city        IS 'City - flattened from bl_3nf.ce_locations. n/a for ecom. Default row: ''n/a''.';
 COMMENT ON COLUMN bl_dm.dim_stores.store_state       IS 'State code - flattened from bl_3nf.ce_locations. VARCHAR(3): fits ''n/a'' default. BT specifies CHAR(2) - overridden to fit default value convention. n/a for ecom.';
 COMMENT ON COLUMN bl_dm.dim_stores.store_postal_code IS 'Postal code - flattened from bl_3nf.ce_locations. n/a for ecom. Default row: ''n/a''.';
-COMMENT ON COLUMN bl_dm.dim_stores.ta_insert_dt      IS 'Technical: row creation date. Default row: DATE ''1900-01-01''.';
-COMMENT ON COLUMN bl_dm.dim_stores.ta_update_dt      IS 'Technical: last update date (SCD1 - overwrite on change). Default row: DATE ''1900-01-01''.';
+COMMENT ON COLUMN bl_dm.dim_stores.ta_insert_dt      IS 'Technical: row creation date. Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
+COMMENT ON COLUMN bl_dm.dim_stores.ta_update_dt      IS 'Technical: last update date (SCD1 - overwrite on change). Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
 COMMENT ON COLUMN bl_dm.dim_stores.source_system     IS 'Source triplet: BL_3NF or MANUAL (default row).';
 COMMENT ON COLUMN bl_dm.dim_stores.source_entity     IS 'Source triplet: CE_STORES or MANUAL.';
 
@@ -237,10 +228,7 @@ COMMENT ON COLUMN bl_dm.dim_stores.source_entity     IS 'Source triplet: CE_STOR
 --
 -- ------------------------------------------------------------
 
-DROP TABLE IF EXISTS bl_dm.dim_customers_scd CASCADE;
-ALTER SEQUENCE IF EXISTS bl_dm.seq_dim_customers_scd RESTART WITH 1;
-
-CREATE TABLE bl_dm.dim_customers_scd (
+CREATE TABLE IF NOT EXISTS bl_dm.dim_customers_scd (
     customer_surr_id        BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_dim_customers_scd'),
     customer_src_id         VARCHAR(50)     NOT NULL,
     customer_name           VARCHAR(100)    NOT NULL,
@@ -254,8 +242,8 @@ CREATE TABLE bl_dm.dim_customers_scd (
     start_dt                DATE            NOT NULL,
     end_dt                  DATE            NOT NULL,
     is_active               VARCHAR(1)      NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
-    ta_update_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP            NOT NULL,
+    ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_customers_scd         PRIMARY KEY (customer_surr_id),
@@ -291,8 +279,8 @@ COMMENT ON COLUMN bl_dm.dim_customers_scd.customer_postal_code  IS 'Postal code 
 COMMENT ON COLUMN bl_dm.dim_customers_scd.start_dt              IS 'SCD2 period start date. Default row: DATE ''1900-01-01''.';
 COMMENT ON COLUMN bl_dm.dim_customers_scd.end_dt                IS 'SCD2 period end date. Default row: DATE ''9999-12-31''. Set to CURRENT_DATE-1 when version is expired.';
 COMMENT ON COLUMN bl_dm.dim_customers_scd.is_active             IS 'Y = current active version, N = expired historical version. Default row: ''Y''.';
-COMMENT ON COLUMN bl_dm.dim_customers_scd.ta_insert_dt          IS 'Technical: row creation date. Default row: DATE ''1900-01-01''.';
-COMMENT ON COLUMN bl_dm.dim_customers_scd.ta_update_dt          IS 'Technical: date ETL closed this version (set IS_ACTIVE=N). Default row: DATE ''1900-01-01''. Updated to CURRENT_DATE when row is expired.';
+COMMENT ON COLUMN bl_dm.dim_customers_scd.ta_insert_dt          IS 'Technical: row creation date. Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
+COMMENT ON COLUMN bl_dm.dim_customers_scd.ta_update_dt          IS 'Technical: date ETL closed this version (set IS_ACTIVE=N). Default row: TIMESTAMP ''1900-01-01 00:00:00''. Updated to CURRENT_DATE when row is expired.';
 COMMENT ON COLUMN bl_dm.dim_customers_scd.source_system         IS 'Source triplet: BL_3NF or MANUAL (default row).';
 COMMENT ON COLUMN bl_dm.dim_customers_scd.source_entity         IS 'Source triplet: CE_CUSTOMERS_SCD or MANUAL.';
 
@@ -314,16 +302,13 @@ COMMENT ON COLUMN bl_dm.dim_customers_scd.source_entity         IS 'Source tripl
 --
 -- ------------------------------------------------------------
 
-DROP TABLE IF EXISTS bl_dm.dim_products_scd CASCADE;
-ALTER SEQUENCE IF EXISTS bl_dm.seq_dim_products_scd RESTART WITH 1;
-
-CREATE TABLE bl_dm.dim_products_scd (
+CREATE TABLE IF NOT EXISTS bl_dm.dim_products_scd (
     product_surr_id             BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_dim_products_scd'),
     product_src_id              VARCHAR(50)     NOT NULL,
     product_description         VARCHAR(200)    NOT NULL,
     product_colour              VARCHAR(50)     NOT NULL,
     product_size                VARCHAR(20)     NOT NULL,
-    product_min_amount          DECIMAL(12,2),
+    product_min_amount          DECIMAL(18,8),
     product_subcategory_id      BIGINT          NOT NULL,
     product_subcategory_name    VARCHAR(100)    NOT NULL,
     product_category_id         BIGINT          NOT NULL,
@@ -333,8 +318,8 @@ CREATE TABLE bl_dm.dim_products_scd (
     start_dt                    DATE            NOT NULL,
     end_dt                      DATE            NOT NULL,
     is_active                   VARCHAR(1)      NOT NULL,
-    ta_insert_dt                DATE            NOT NULL,
-    ta_update_dt                DATE            NOT NULL,
+    ta_insert_dt                TIMESTAMP            NOT NULL,
+    ta_update_dt                TIMESTAMP            NOT NULL,
     source_system               VARCHAR(50)     NOT NULL,
     source_entity               VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_products_scd          PRIMARY KEY (product_surr_id),
@@ -372,8 +357,8 @@ COMMENT ON COLUMN bl_dm.dim_products_scd.product_top_category_name IS 'Top categ
 COMMENT ON COLUMN bl_dm.dim_products_scd.start_dt                  IS 'SCD2 period start date. Default row: DATE ''1900-01-01''.';
 COMMENT ON COLUMN bl_dm.dim_products_scd.end_dt                    IS 'SCD2 period end date. Default row: DATE ''9999-12-31''. Set to CURRENT_DATE-1 when version is expired.';
 COMMENT ON COLUMN bl_dm.dim_products_scd.is_active                 IS 'Y = current active version, N = expired historical version. Default row: ''Y''.';
-COMMENT ON COLUMN bl_dm.dim_products_scd.ta_insert_dt              IS 'Technical: row creation date. Default row: DATE ''1900-01-01''.';
-COMMENT ON COLUMN bl_dm.dim_products_scd.ta_update_dt              IS 'Technical: date ETL closed this version (set IS_ACTIVE=N). Default row: DATE ''1900-01-01''.';
+COMMENT ON COLUMN bl_dm.dim_products_scd.ta_insert_dt              IS 'Technical: row creation date. Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
+COMMENT ON COLUMN bl_dm.dim_products_scd.ta_update_dt              IS 'Technical: date ETL closed this version (set IS_ACTIVE=N). Default row: TIMESTAMP ''1900-01-01 00:00:00''.';
 COMMENT ON COLUMN bl_dm.dim_products_scd.source_system             IS 'Source triplet: BL_3NF or MANUAL (default row).';
 COMMENT ON COLUMN bl_dm.dim_products_scd.source_entity             IS 'Source triplet: CE_PRODUCTS_SCD or MANUAL.';
 
@@ -414,10 +399,7 @@ COMMENT ON COLUMN bl_dm.dim_products_scd.source_entity             IS 'Source tr
 --               Composed as: PAYMENT_SRC_ID || '_' || PRODUCT_SRC_ID
 -- ============================================================
 
-DROP TABLE IF EXISTS bl_dm.fct_sales_dd CASCADE;
-ALTER SEQUENCE IF EXISTS bl_dm.seq_fct_sales_dd RESTART WITH 1;
-
-CREATE TABLE bl_dm.fct_sales_dd (
+CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_dd (
     sales_surr_id           BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_fct_sales_dd'),
     event_dt                DATE            NOT NULL,
     date_surr_id            BIGINT          NOT NULL,
@@ -428,15 +410,15 @@ CREATE TABLE bl_dm.fct_sales_dd (
     payment_type_surr_id    BIGINT          NOT NULL,
     payment_src_id          VARCHAR(50)     NOT NULL,
     line_src_id             VARCHAR(100)    NOT NULL,
-    fct_sales_amount        DECIMAL(12,2),
-    fct_discount            DECIMAL(12,2),
-    fct_net_amount          DECIMAL(12,2),
-    fct_unit_cost           DECIMAL(12,2),
+    fct_sales_amount        DECIMAL(18,8),
+    fct_discount            DECIMAL(18,8),
+    fct_net_amount          DECIMAL(18,8),
+    fct_unit_cost           DECIMAL(18,8),
     fct_quantity            INTEGER,
-    fct_total_cost          DECIMAL(12,2),
-    fct_gross_profit        DECIMAL(12,2),
-    ta_insert_dt            DATE            NOT NULL,
-    ta_update_dt            DATE            NOT NULL,
+    fct_total_cost          DECIMAL(18,8),
+    fct_gross_profit        DECIMAL(18,8),
+    ta_insert_dt            TIMESTAMP            NOT NULL,
+    ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_fct_sales_dd              PRIMARY KEY (sales_surr_id),

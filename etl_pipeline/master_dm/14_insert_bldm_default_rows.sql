@@ -12,8 +12,8 @@
 -- IS_ACTIVE VARCHAR(1)             'Y'              Default row always "active"
 -- START_DT                         DATE '1900-01-01'
 -- END_DT                           DATE '9999-12-31'
--- TA_INSERT_DT                     DATE '1900-01-01'
--- TA_UPDATE_DT                     DATE '1900-01-01' SCD1/SCD2: date closed;
+-- TA_INSERT_DT                     TIMESTAMP '1900-01-01 00:00:00'
+-- TA_UPDATE_DT                     TIMESTAMP '1900-01-01 00:00:00'' SCD1/SCD2: date closed;
 -- SOURCE_SYSTEM                    'MANUAL'
 -- SOURCE_ENTITY                    'MANUAL'
 -- <Name>_SRC_ID                    'n/a'            Lowercase sentinel - not a real NK
@@ -48,7 +48,7 @@ SELECT
     -1,
     'n/a',
     'n/a',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -116,8 +116,8 @@ SELECT
     'n/a',
     'n/a',
     'n/a',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -180,8 +180,8 @@ SELECT
     'n/a',
     'n/a',
     'n/a',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -260,8 +260,8 @@ SELECT
     DATE '1900-01-01',
     DATE '9999-12-31',
     'Y',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -336,8 +336,8 @@ SELECT
     DATE '1900-01-01',
     DATE '9999-12-31',
     'Y',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
