@@ -44,7 +44,7 @@ SELECT
     nextval('bl_dm.seq_dim_payment_types'),
     src.payment_type_src_id,
     src.payment_type_name,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_PAYMENT_TYPES'
 FROM bl_3nf.ce_payment_types src
@@ -110,8 +110,8 @@ SELECT
     COALESCE(loc.location_city,         'n/a'),
     COALESCE(loc.location_state,        'n/a'),
     COALESCE(loc.location_postal_code,  'n/a'),
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_EMPLOYEES'
 FROM bl_3nf.ce_employees src
@@ -140,7 +140,7 @@ SET
     employee_city           = COALESCE(loc.location_city,        'n/a'),
     employee_state          = COALESCE(loc.location_state,       'n/a'),
     employee_postal_code    = COALESCE(loc.location_postal_code, 'n/a'),
-    ta_update_dt            = CURRENT_DATE
+    ta_update_dt            = CURRENT_TIMESTAMP
 FROM bl_3nf.ce_employees src
 LEFT JOIN bl_3nf.ce_locations loc
        ON loc.location_id = src.employee_location_id
@@ -211,8 +211,8 @@ SELECT
     COALESCE(loc.location_city,         'n/a'),
     COALESCE(loc.location_state,        'n/a'),
     COALESCE(loc.location_postal_code,  'n/a'),
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_STORES'
 FROM bl_3nf.ce_stores src
@@ -241,7 +241,7 @@ SET
     store_city          = COALESCE(loc.location_city,        'n/a'),
     store_state         = COALESCE(loc.location_state,       'n/a'),
     store_postal_code   = COALESCE(loc.location_postal_code, 'n/a'),
-    ta_update_dt        = CURRENT_DATE,
+    ta_update_dt        = CURRENT_TIMESTAMP,
     source_system       = 'BL_3NF',
     source_entity       = 'CE_STORES'
 FROM bl_3nf.ce_stores src
@@ -304,7 +304,7 @@ UPDATE bl_dm.dim_customers_scd tgt
 SET
     end_dt       = CURRENT_DATE - 1,
     is_active    = 'N',
-    ta_update_dt = CURRENT_DATE
+    ta_update_dt = CURRENT_TIMESTAMP
 FROM bl_3nf.ce_customers_scd src
 LEFT JOIN bl_3nf.ce_locations loc
        ON loc.location_id = src.customer_location_id
@@ -358,8 +358,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_CUSTOMERS_SCD'
 FROM bl_3nf.ce_customers_scd src
@@ -422,8 +422,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_CUSTOMERS_SCD'
 FROM bl_3nf.ce_customers_scd src
@@ -480,7 +480,7 @@ UPDATE bl_dm.dim_products_scd tgt
 SET
     end_dt       = CURRENT_DATE - 1,
     is_active    = 'N',
-    ta_update_dt = CURRENT_DATE
+    ta_update_dt = CURRENT_TIMESTAMP
 FROM bl_3nf.ce_products_scd src
 LEFT JOIN bl_3nf.ce_product_subcategories  sub
        ON sub.product_subcategory_id  = src.product_subcategory_id
@@ -545,8 +545,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_PRODUCTS_SCD'
 FROM bl_3nf.ce_products_scd src
@@ -614,8 +614,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'BL_3NF',
     'CE_PRODUCTS_SCD'
 FROM bl_3nf.ce_products_scd src
@@ -781,8 +781,8 @@ SELECT
     END,
 
     -- Technical attributes
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
 
     -- Source triplet preserved from CE_SALES (original SA source)
     s.source_system,
