@@ -100,7 +100,7 @@ CREATE TABLE sa_retail.src_retail_sales (
     subcategory             VARCHAR(100),   
     category                VARCHAR(100),   
     top_category            VARCHAR(100),   
-    min_amount              DECIMAL(12,2),  
+    min_amount              DECIMAL(18,8),  
 
     -- ----- COST → CE_SALES (KPI) + FCT_SALES_DD.FCT_UNIT_COST -----
     cost                    DECIMAL(18,8),
@@ -108,8 +108,8 @@ CREATE TABLE sa_retail.src_retail_sales (
     -- ----- TRANSACTION → CE_SALES + FCT_SALES_DD -----
     bill_id                 VARCHAR(50),    
     transaction_date        DATE,           
-    line_item_amount        DECIMAL(12,2),  
-    bill_discount           DECIMAL(12,2),  
+    line_item_amount        DECIMAL(18,8),  
+    bill_discount           DECIMAL(18,8), 
     -- NOTE: FCT_NET_AMOUNT (RETAIL) = line_item_amount – bill_discount
     --       (one line item per bill in current dataset; if multiple
     --        lines per bill exist, discount must be pro-rated)
@@ -191,8 +191,8 @@ CREATE TABLE sa_ecom.src_ecom_sales (
     transaction_date            DATE,          
     -- NOTE: FCT_NET_AMOUNT (ECOM) = sales_amount directly
     --       (discount is already applied; do NOT subtract again)
-    sales_amount                DECIMAL(12,2), 
-    discount                    DECIMAL(12,2), 
+    sales_amount                DECIMAL(18,8),
+    discount                    DECIMAL(18,8),
     payment_type                VARCHAR(50),   
     quantity                    INTEGER,       
 

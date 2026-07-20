@@ -114,19 +114,19 @@ SELECT
 
     CASE
         WHEN TRIM(line_item_amount) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(line_item_amount)::DECIMAL(12,2)
+        THEN TRIM(line_item_amount)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS line_item_amount,
 
     CASE
         WHEN TRIM(bill_discount) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(bill_discount)::DECIMAL(12,2)
+        THEN TRIM(bill_discount)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS bill_discount,
 
     CASE
         WHEN TRIM(min_amount) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(min_amount)::DECIMAL(12,2)
+        THEN TRIM(min_amount)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS min_amount,
 
@@ -254,13 +254,13 @@ SELECT
 
     CASE
         WHEN TRIM(sales_amount) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(sales_amount)::DECIMAL(12,2)
+        THEN TRIM(sales_amount)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS sales_amount,
 
     CASE
         WHEN TRIM(discount) ~ '^-?[0-9]+\.?[0-9]*$'
-        THEN TRIM(discount)::DECIMAL(12,2)
+        THEN TRIM(discount)::DECIMAL(18,8)
         ELSE NULL
     END                                                             AS discount,
 
