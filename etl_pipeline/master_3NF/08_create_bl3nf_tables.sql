@@ -1,4 +1,4 @@
--- DDL - All BL_3NF CE_ tables (rerunnable: DROP TABLE IF EXISTS + CREATE TABLE)
+-- DDL - All BL_3NF CE_ tables
 -- ============================================================
 -- DDL - Create all Core Entity (CE_) tables for the
 -- Clothes Shop DWH in the BL_3NF schema.
@@ -65,14 +65,12 @@
 --      Sources: src_retail_sales.zone_code; ecom → 'N/A' constant
 --      No FK dependencies.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_store_zones CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_store_zones RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_store_zones (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_store_zones (
     store_zone_id       BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_store_zones'),
     store_zone_src_id   VARCHAR(100)    NOT NULL,
     store_zone_name     VARCHAR(50)     NOT NULL,
-    ta_insert_dt        DATE            NOT NULL,
+    ta_insert_dt        TIMESTAMP       NOT NULL,
     source_system       VARCHAR(50)     NOT NULL,
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_store_zones          PRIMARY KEY (store_zone_id),
@@ -98,14 +96,12 @@ COMMENT ON COLUMN bl_3nf.ce_store_zones.source_entity    IS 'Source triplet: SRC
 --      No FK dependencies.
 --      NOTE: No SOURCE_ID in raw data → NK generated from name.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_payment_types CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_payment_types RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_payment_types (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_payment_types (
     payment_type_id         BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_payment_types'),
     payment_type_src_id     VARCHAR(100)    NOT NULL,
     payment_type_name       VARCHAR(50)     NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP       NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_payment_types          PRIMARY KEY (payment_type_id),
@@ -138,15 +134,13 @@ COMMENT ON COLUMN bl_3nf.ce_payment_types.source_entity     IS 'Source triplet: 
 --      No FK dependencies.
 --      NOTE: No _DESC column - not present in source data.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_product_top_categories CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_product_top_categories RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_product_top_categories (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_product_top_categories (
     product_top_category_id         BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_product_top_categories'),
     product_top_category_src_id     VARCHAR(100)    NOT NULL,
     product_top_category_name       VARCHAR(100)    NOT NULL,
-    ta_insert_dt                    DATE            NOT NULL,
-    ta_update_dt                    DATE            NOT NULL,
+    ta_insert_dt                    TIMESTAMP       NOT NULL,
+    ta_update_dt                    TIMESTAMP       NOT NULL,
     source_system                   VARCHAR(50)     NOT NULL,
     source_entity                   VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_product_top_categories         PRIMARY KEY (product_top_category_id),
@@ -173,16 +167,14 @@ COMMENT ON COLUMN bl_3nf.ce_product_top_categories.source_entity               I
 --          (ecom: FK = -1 default row, retail: resolved by NK)
 --      NOTE: No _DESC column - not present in source data.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_product_categories CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_product_categories RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_product_categories (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_product_categories (
     product_category_id         BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_product_categories'),
     product_category_src_id     VARCHAR(100)    NOT NULL,
     product_category_name       VARCHAR(100)    NOT NULL,
     product_top_category_id     BIGINT          NOT NULL,
-    ta_insert_dt                DATE            NOT NULL,
-    ta_update_dt                DATE            NOT NULL,
+    ta_insert_dt                TIMESTAMP            NOT NULL,
+    ta_update_dt                TIMESTAMP            NOT NULL,
     source_system               VARCHAR(50)     NOT NULL,
     source_entity               VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_product_categories             PRIMARY KEY (product_category_id),
@@ -211,16 +203,14 @@ COMMENT ON COLUMN bl_3nf.ce_product_categories.source_entity               IS 'S
 --      FK: PRODUCT_CATEGORY_ID → CE_PRODUCT_CATEGORIES
 --      NOTE: No _DESC column - not present in source data.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_product_subcategories CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_product_subcategories RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_product_subcategories (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_product_subcategories (
     product_subcategory_id          BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_product_subcategories'),
     product_subcategory_src_id      VARCHAR(100)    NOT NULL,
     product_subcategory_name        VARCHAR(100)    NOT NULL,
     product_category_id             BIGINT          NOT NULL,
-    ta_insert_dt                    DATE            NOT NULL,
-    ta_update_dt                    DATE            NOT NULL,
+    ta_insert_dt                    TIMESTAMP            NOT NULL,
+    ta_update_dt                    TIMESTAMP            NOT NULL,
     source_system                   VARCHAR(50)     NOT NULL,
     source_entity                   VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_product_subcategories              PRIMARY KEY (product_subcategory_id),
@@ -256,18 +246,16 @@ COMMENT ON COLUMN bl_3nf.ce_product_subcategories.source_entity                 
 --               (store, customer, employee addresses).
 --      No FK dependencies.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_locations CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_locations RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_locations (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_locations (
     location_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_locations'),
     location_src_id         VARCHAR(200)    NOT NULL,
     location_address        VARCHAR(200)    NOT NULL,
     location_postal_code    VARCHAR(10)     NOT NULL,
     location_city           VARCHAR(100)    NOT NULL,
     location_state          VARCHAR(3)      NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
-    ta_update_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP            NOT NULL,
+    ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_locations              PRIMARY KEY (location_id),
@@ -296,10 +284,8 @@ COMMENT ON COLUMN bl_3nf.ce_locations.source_entity      IS 'Source triplet: SRC
 --      FK: EMPLOYEE_LOCATION_ID → CE_LOCATIONS
 --      NOTE: SSN excluded from all layers (sensitive data).
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_employees CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_employees RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_employees (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_employees (
     employee_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_employees'),
     employee_src_id         VARCHAR(50)     NOT NULL,
     employee_name           VARCHAR(100)    NOT NULL,
@@ -307,8 +293,8 @@ CREATE TABLE bl_3nf.ce_employees (
     employee_email          VARCHAR(100)    NOT NULL,
     employee_phone_number   VARCHAR(30)     NOT NULL,
     employee_location_id    BIGINT          NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
-    ta_update_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP            NOT NULL,
+    ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_employees                  PRIMARY KEY (employee_id),
@@ -340,17 +326,15 @@ COMMENT ON COLUMN bl_3nf.ce_employees.source_entity          IS 'Source triplet:
 --      FK: STORE_ZONE_ID     → CE_STORE_ZONES
 --          STORE_LOCATION_ID → CE_LOCATIONS
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_stores CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_stores RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_stores (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_stores (
     store_id            BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_stores'),
     store_src_id        VARCHAR(50)     NOT NULL,
     store_channel       VARCHAR(20)     NOT NULL,
     store_zone_id       BIGINT          NOT NULL,
     store_location_id   BIGINT          NOT NULL,
-    ta_insert_dt        DATE            NOT NULL,
-    ta_update_dt        DATE            NOT NULL,
+    ta_insert_dt        TIMESTAMP            NOT NULL,
+    ta_update_dt        TIMESTAMP            NOT NULL,
     source_system       VARCHAR(50)     NOT NULL,
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_stores                 PRIMARY KEY (store_id),
@@ -397,10 +381,8 @@ COMMENT ON COLUMN bl_3nf.ce_stores.source_entity     IS 'Source triplet: SRC_RET
 --      NOTE: CUSTOMER_EMAIL = 'n/a' for retail source (not in src).
 --            SSN, credit card data excluded (sensitive).
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_customers_scd CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_customers_scd RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_customers_scd (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_customers_scd (
     customer_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_customers_scd'),
     customer_src_id         VARCHAR(50)     NOT NULL,
     customer_name           VARCHAR(100)    NOT NULL,
@@ -411,8 +393,8 @@ CREATE TABLE bl_3nf.ce_customers_scd (
     start_dt                DATE            NOT NULL,
     end_dt                  DATE            NOT NULL,
     is_active               VARCHAR(1)      NOT NULL,
-    ta_insert_dt            DATE            NOT NULL,
-    ta_update_dt            DATE            NOT NULL,
+    ta_insert_dt            TIMESTAMP            NOT NULL,
+    ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_customers_scd          PRIMARY KEY (customer_id, start_dt),
@@ -456,22 +438,20 @@ COMMENT ON COLUMN bl_3nf.ce_customers_scd.source_entity          IS 'Source trip
 --            → PRODUCT_MIN_AMOUNT  = NULL   (KPI - numeric, cannot store n/a)
 --            PRODUCT_COST moved to CE_SALES as KPI.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_products_scd CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_products_scd RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_products_scd (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_products_scd (
     product_id                  BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_products_scd'),
     product_src_id              VARCHAR(50)     NOT NULL,
     product_subcategory_id      BIGINT          NOT NULL,
     product_description         VARCHAR(200)    NOT NULL,
     product_colour              VARCHAR(50)     NOT NULL,
     product_size                VARCHAR(20)     NOT NULL,
-    product_min_amount          DECIMAL(12,2),
+    product_min_amount          DECIMAL(18,8),
     start_dt                    DATE            NOT NULL,
     end_dt                      DATE            NOT NULL,
     is_active                   VARCHAR(1)      NOT NULL,
-    ta_insert_dt                DATE            NOT NULL,
-    ta_update_dt                DATE            NOT NULL,
+    ta_insert_dt                TIMESTAMP            NOT NULL,
+    ta_update_dt                TIMESTAMP            NOT NULL,
     source_system               VARCHAR(50)     NOT NULL,
     source_entity               VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_products_scd               PRIMARY KEY (product_id, start_dt),
@@ -520,10 +500,8 @@ COMMENT ON COLUMN bl_3nf.ce_products_scd.source_entity           IS 'Source trip
 --      Sources: src_retail_sales (bill_id, line_item_amount, …)
 --               src_ecom_sales   (payment_id, sales_amount, …)
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS bl_3nf.ce_sales CASCADE;
-ALTER SEQUENCE IF EXISTS bl_3nf.seq_ce_sales RESTART WITH 1;
 
-CREATE TABLE bl_3nf.ce_sales (
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_sales (
     sale_id             BIGINT          NOT NULL    DEFAULT nextval('bl_3nf.seq_ce_sales'),
     sale_src_id         VARCHAR(50)     NOT NULL,
     event_dt            DATE            NOT NULL,
@@ -533,12 +511,12 @@ CREATE TABLE bl_3nf.ce_sales (
     product_id          BIGINT          NOT NULL,
     store_id            BIGINT          NOT NULL,
     payment_type_id     BIGINT          NOT NULL,
-    sales_amount        DECIMAL(12,2),
-    discount            DECIMAL(12,2),
-    cost                DECIMAL(12,2),
+    sales_amount        DECIMAL(18,8),
+    discount            DECIMAL(18,8),
+    cost                DECIMAL(18,8),
     quantity            INTEGER,
-    ta_insert_dt        DATE            NOT NULL,
-    ta_update_dt        DATE            NOT NULL,
+    ta_insert_dt        TIMESTAMP            NOT NULL,
+    ta_update_dt        TIMESTAMP            NOT NULL,
     source_system       VARCHAR(50)     NOT NULL,
     source_entity       VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_sales                  PRIMARY KEY (sale_id),

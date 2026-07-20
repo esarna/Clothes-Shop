@@ -55,7 +55,7 @@ SELECT
     -1,
     'n/a',
     'n/a',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -92,7 +92,7 @@ SELECT
     -1,
     'n/a',
     'n/a',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -142,8 +142,8 @@ SELECT
     -1,
     'n/a',
     'n/a',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -183,8 +183,8 @@ SELECT
     'n/a',
     'n/a',
     -1,
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -224,8 +224,8 @@ SELECT
     'n/a',
     'n/a',
     -1,
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -280,8 +280,8 @@ SELECT
     'n/a',
     'n/a',
     'n/a',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -326,8 +326,8 @@ SELECT
     'n/a',
     'n/a',
     -1,
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -370,8 +370,8 @@ SELECT
     'n/a',
     -1,
     -1,
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -437,8 +437,8 @@ SELECT
     DATE '1900-01-01',
     DATE '9999-12-31',
     'Y',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (
@@ -497,8 +497,8 @@ SELECT
     DATE '1900-01-01',
     DATE '9999-12-31',
     'Y',
-    DATE '1900-01-01',
-    DATE '1900-01-01',
+    TIMESTAMP '1900-01-01 00:00:00',
+    TIMESTAMP '1900-01-01 00:00:00',
     'MANUAL',
     'MANUAL'
 WHERE NOT EXISTS (

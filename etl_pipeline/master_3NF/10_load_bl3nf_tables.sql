@@ -85,7 +85,7 @@ SELECT
     nextval('bl_3nf.seq_ce_store_zones'),
     src.store_zone_src_id,
     src.store_zone_name,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -146,7 +146,7 @@ SELECT
     nextval('bl_3nf.seq_ce_payment_types'),
     src.payment_type_src_id,
     src.payment_type_name,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -228,8 +228,8 @@ SELECT
     nextval('bl_3nf.seq_ce_product_top_categories'),
     src.product_top_category_src_id,
     src.product_top_category_name,
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -252,7 +252,7 @@ WHERE NOT EXISTS (
 UPDATE bl_3nf.ce_product_top_categories tgt
 SET
     product_top_category_name = src.product_top_category_name,
-    ta_update_dt              = CURRENT_DATE,
+    ta_update_dt              = CURRENT_TIMESTAMP,
     source_system             = src.source_system,
     source_entity             = src.source_entity
 FROM (
@@ -310,8 +310,8 @@ SELECT
     src.product_category_src_id,
     src.product_category_name,
     COALESCE(top.product_top_category_id, -1),
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -360,7 +360,7 @@ UPDATE bl_3nf.ce_product_categories tgt
 SET
     product_category_name       = src.product_category_name,
     product_top_category_id     = COALESCE(top.product_top_category_id, -1),
-    ta_update_dt                = CURRENT_DATE,
+    ta_update_dt                = CURRENT_TIMESTAMP,
     source_system               = src.source_system,
     source_entity               = src.source_entity
 FROM (
@@ -436,8 +436,8 @@ SELECT
     src.product_subcategory_src_id,
     src.product_subcategory_name,
     COALESCE(cat.product_category_id, -1),
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -479,7 +479,7 @@ UPDATE bl_3nf.ce_product_subcategories tgt
 SET
     product_subcategory_name    = src.product_subcategory_name,
     product_category_id         = COALESCE(cat.product_category_id, -1),
-    ta_update_dt                = CURRENT_DATE,
+    ta_update_dt                = CURRENT_TIMESTAMP,
     source_system               = src.source_system,
     source_entity               = src.source_entity
 FROM (
@@ -566,8 +566,8 @@ SELECT
     src.location_postal_code,
     src.location_city,
     src.location_state,
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -666,7 +666,7 @@ UPDATE bl_3nf.ce_locations tgt
 SET
     location_city        = src.location_city,
     location_state       = src.location_state,
-    ta_update_dt         = CURRENT_DATE
+    ta_update_dt         = CURRENT_TIMESTAMP
 FROM (
     SELECT DISTINCT
         COALESCE(TRIM(store_address),      'n/a')
@@ -786,8 +786,8 @@ SELECT
     src.employee_email,
     src.employee_phone_number,
     COALESCE(loc.location_id, -1),
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -851,7 +851,7 @@ SET
     employee_email          = src.employee_email,
     employee_phone_number   = src.employee_phone_number,
     employee_location_id    = COALESCE(loc.location_id, -1),
-    ta_update_dt            = CURRENT_DATE,
+    ta_update_dt            = CURRENT_TIMESTAMP,
     source_system           = src.source_system,
     source_entity           = src.source_entity
 FROM (
@@ -949,8 +949,8 @@ SELECT
     src.store_channel,
     COALESCE(zon.store_zone_id,  -1),
     COALESCE(loc.location_id,    -1),
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -999,7 +999,7 @@ UPDATE bl_3nf.ce_stores tgt
 SET
     store_zone_id       = COALESCE(zon.store_zone_id, -1),
     store_location_id   = COALESCE(loc.location_id,   -1),
-    ta_update_dt        = CURRENT_DATE,
+    ta_update_dt        = CURRENT_TIMESTAMP,
     source_system       = src.source_system,
     source_entity       = src.source_entity
 FROM (
@@ -1077,7 +1077,7 @@ UPDATE bl_3nf.ce_customers_scd tgt
 SET
     end_dt      = CURRENT_DATE - 1,
     is_active   = 'N',
-    ta_update_dt = CURRENT_DATE
+    ta_update_dt = CURRENT_TIMESTAMP
 FROM (
     -- SA_RETAIL customers
     SELECT * FROM (
@@ -1141,8 +1141,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -1230,8 +1230,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -1320,7 +1320,7 @@ UPDATE bl_3nf.ce_products_scd tgt
 SET
     end_dt      = CURRENT_DATE - 1,
     is_active   = 'N',
-    ta_update_dt = CURRENT_DATE
+    ta_update_dt = CURRENT_TIMESTAMP
 FROM (
     -- SA_RETAIL: all tracked attributes available
     SELECT * FROM (
@@ -1350,7 +1350,7 @@ FROM (
             'n/a'                   AS product_description,
             'n/a'                   AS product_colour,
             'n/a'                   AS product_size,
-            NULL::DECIMAL(12,2)     AS product_min_amount
+            NULL::DECIMAL(18,8)     AS product_min_amount
         FROM sa_ecom.src_ecom_sales e
         WHERE e.product_code IS NOT NULL
         AND TRIM(e.product_code) <> ''
@@ -1399,8 +1399,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -1434,7 +1434,7 @@ FROM (
             'n/a'                   AS product_description,
             'n/a'                   AS product_colour,
             'n/a'                   AS product_size,
-            NULL::DECIMAL(12,2)     AS product_min_amount,
+            NULL::DECIMAL(18,8)     AS product_min_amount,
             'SA_ECOM'               AS source_system,
             'SRC_ECOM_SALES'        AS source_entity
         FROM sa_ecom.src_ecom_sales e
@@ -1490,8 +1490,8 @@ SELECT
     CURRENT_DATE,
     DATE '9999-12-31',
     'Y',
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     src.source_system,
     src.source_entity
 FROM (
@@ -1525,7 +1525,7 @@ FROM (
             'n/a'                   AS product_description,
             'n/a'                   AS product_colour,
             'n/a'                   AS product_size,
-            NULL::DECIMAL(12,2)     AS product_min_amount,
+            NULL::DECIMAL(18,8)     AS product_min_amount,
             'SA_ECOM'               AS source_system,
             'SRC_ECOM_SALES'        AS source_entity
         FROM sa_ecom.src_ecom_sales e
@@ -1634,11 +1634,31 @@ SELECT
     r.bill_discount,
     r.cost,             -- monetary cost from retail source
     r.quantity_sold,
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'SA_RETAIL',
     'SRC_RETAIL_SALES'
-FROM sa_retail.src_retail_sales r
+FROM (
+     -- ── Deduplication - take first correct ──
+     SELECT DISTINCT ON (TRIM(bill_id), TRIM(product_code))
+         TRIM(bill_id)               AS bill_id,
+         transaction_date,
+         TRIM(customer_id)           AS customer_id,
+         TRIM(employee_id)           AS employee_id,
+         TRIM(product_code)          AS product_code,
+         TRIM(store_code)            AS store_code,
+         UPPER(TRIM(payment_method)) AS payment_method,
+         line_item_amount,
+         bill_discount,
+         cost,
+         quantity_sold
+     FROM sa_retail.src_retail_sales
+     WHERE bill_id IS NOT NULL
+       AND TRIM(bill_id)      <> ''
+       AND product_code IS NOT NULL
+       AND TRIM(product_code) <> ''
+     ORDER BY TRIM(bill_id), TRIM(product_code), ta_insert_dt DESC
+ ) r
 -- ── Dimension lookups (all LEFT JOIN) ───────
 LEFT JOIN bl_dm.dim_time_day d
         ON d.date_src_id = TO_CHAR(r.transaction_date, 'YYYYMMDD')
@@ -1663,7 +1683,8 @@ WHERE r.bill_id IS NOT NULL
     SELECT 1
     FROM   bl_3nf.ce_sales tgt
     WHERE  tgt.sale_src_id    = TRIM(r.bill_id)
-    AND  tgt.source_system  = 'SA_RETAIL'
+        AND  tgt.source_system  = 'SA_RETAIL'
+        AND  tgt.product_id     = COALESCE(prod.product_id, -1)
 );
 
 DO $$
@@ -1725,17 +1746,36 @@ SELECT
     e.discount,
     e.cost,
     e.quantity,
-    CURRENT_DATE,
-    CURRENT_DATE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
     'SA_ECOM',
     'SRC_ECOM_SALES'
-FROM sa_ecom.src_ecom_sales e
+FROM (
+     -- ── Deduplication - take first correct ──
+     SELECT DISTINCT ON (TRIM(payment_id), TRIM(product_code))
+         TRIM(payment_id)        AS payment_id,
+         transaction_date,
+         TRIM(user_id)           AS user_id,
+         TRIM(ee_id)             AS ee_id,
+         TRIM(product_code)      AS product_code,
+         UPPER(TRIM(payment_type)) AS payment_type,
+         sales_amount,
+         discount,
+         cost,
+         quantity
+     FROM sa_ecom.src_ecom_sales
+     WHERE payment_id IS NOT NULL
+       AND TRIM(payment_id)   <> ''
+       AND product_code IS NOT NULL
+       AND TRIM(product_code) <> ''
+     ORDER BY TRIM(payment_id), TRIM(product_code), ta_insert_dt DESC
+ ) e
 -- ── Dimension lookups (all LEFT JOIN) ────────────────────────
 LEFT JOIN bl_dm.dim_time_day d
         ON d.date_src_id = TO_CHAR(e.transaction_date, 'YYYYMMDD')
 -- SCD2 customer lookup
 LEFT JOIN bl_3nf.ce_customers_scd cust
-       ON cust.customer_src_id = TRIM(e.user_id)
+       ON cust.customer_src_id = e.user_id
       AND cust.is_active        = 'Y'
 -- Employee lookup
 LEFT JOIN bl_3nf.ce_employees emp
@@ -1757,8 +1797,9 @@ WHERE
     AND NOT EXISTS (
     SELECT 1
     FROM   bl_3nf.ce_sales tgt
-    WHERE  tgt.sale_src_id    = TRIM(e.payment_id)
-    AND  tgt.source_system  = 'SA_ECOM'
+    WHERE  tgt.sale_src_id    = e.payment_id
+        AND  tgt.source_system  = 'SA_ECOM'
+        AND  tgt.product_id     = COALESCE(prod.product_id, -1)
 );
 
 DO $$
@@ -1772,7 +1813,6 @@ END;
 $$;
 
 COMMIT;
-
 
 -- ============================================================
 -- FINAL VERIFICATION - Row counts across all 12 CE_ tables
@@ -1793,6 +1833,7 @@ DECLARE
     v_sales_retail      INTEGER;
     v_sales_ecom        INTEGER;
     v_sales_total       INTEGER;
+    v_errors            TEXT := '';   -- accumulates all failures
 BEGIN
     SELECT COUNT(*) INTO v_store_zones    FROM bl_3nf.ce_store_zones             WHERE store_zone_id           > 0;
     SELECT COUNT(*) INTO v_payment_types  FROM bl_3nf.ce_payment_types           WHERE payment_type_id         > 0;
@@ -1804,10 +1845,11 @@ BEGIN
     SELECT COUNT(*) INTO v_stores         FROM bl_3nf.ce_stores                  WHERE store_id                > 0;
     SELECT COUNT(*) INTO v_customers      FROM bl_3nf.ce_customers_scd           WHERE customer_id             > 0;
     SELECT COUNT(*) INTO v_products       FROM bl_3nf.ce_products_scd            WHERE product_id              > 0;
-    SELECT COUNT(*) INTO v_sales_retail   FROM bl_3nf.ce_sales WHERE source_system = 'SA_RETAIL';
-    SELECT COUNT(*) INTO v_sales_ecom     FROM bl_3nf.ce_sales WHERE source_system = 'SA_ECOM';
-    SELECT COUNT(*) INTO v_sales_total  FROM bl_3nf.ce_sales;
+    SELECT COUNT(*) INTO v_sales_retail   FROM bl_3nf.ce_sales                   WHERE source_system = 'SA_RETAIL';
+    SELECT COUNT(*) INTO v_sales_ecom     FROM bl_3nf.ce_sales                   WHERE source_system = 'SA_ECOM';
+    SELECT COUNT(*) INTO v_sales_total    FROM bl_3nf.ce_sales;
 
+    -- ── Print summary ────────────────────────────────────────────
     RAISE NOTICE '=================================================================';
     RAISE NOTICE ' BL_3NF INCREMENTAL LOAD - FINAL ROW COUNT SUMMARY';
     RAISE NOTICE '=================================================================';
@@ -1830,10 +1872,32 @@ BEGIN
     RAISE NOTICE '    ce_products_scd             business rows: %',  v_products;
     RAISE NOTICE '-----------------------------------------------------------------';
     RAISE NOTICE '  GROUP 5 - Fact table:';
-    RAISE NOTICE '    ce_sales  SA_RETAIL          rows: %',          v_sales_retail;
-    RAISE NOTICE '    ce_sales  SA_ECOM             rows: %',          v_sales_ecom;
-    RAISE NOTICE '    ce_sales  TOTAL               rows: %',          v_sales_total;
+    RAISE NOTICE '    ce_sales  SA_RETAIL          rows: %',  v_sales_retail;
+    RAISE NOTICE '    ce_sales  SA_ECOM             rows: %',  v_sales_ecom;
+    RAISE NOTICE '    ce_sales  TOTAL               rows: %',  v_sales_total;
     RAISE NOTICE '=================================================================';
+
+    -- ── Validate every table - accumulate failures ───────────────
+    IF v_store_zones    = 0 THEN v_errors := v_errors || '  [FAIL] ce_store_zones            = 0 business rows' || chr(10); END IF;
+    IF v_payment_types  = 0 THEN v_errors := v_errors || '  [FAIL] ce_payment_types          = 0 business rows' || chr(10); END IF;
+    IF v_top_cats       = 0 THEN v_errors := v_errors || '  [FAIL] ce_product_top_categories = 0 business rows' || chr(10); END IF;
+    IF v_categories     = 0 THEN v_errors := v_errors || '  [FAIL] ce_product_categories     = 0 business rows' || chr(10); END IF;
+    IF v_subcategories  = 0 THEN v_errors := v_errors || '  [FAIL] ce_product_subcategories  = 0 business rows' || chr(10); END IF;
+    IF v_locations      = 0 THEN v_errors := v_errors || '  [FAIL] ce_locations              = 0 business rows' || chr(10); END IF;
+    IF v_employees      = 0 THEN v_errors := v_errors || '  [FAIL] ce_employees              = 0 business rows' || chr(10); END IF;
+    IF v_stores         = 0 THEN v_errors := v_errors || '  [FAIL] ce_stores                 = 0 business rows' || chr(10); END IF;
+    IF v_customers      = 0 THEN v_errors := v_errors || '  [FAIL] ce_customers_scd          = 0 business rows' || chr(10); END IF;
+    IF v_products       = 0 THEN v_errors := v_errors || '  [FAIL] ce_products_scd           = 0 business rows' || chr(10); END IF;
+    IF v_sales_retail   = 0 THEN v_errors := v_errors || '  [FAIL] ce_sales SA_RETAIL        = 0 rows'          || chr(10); END IF;
+    IF v_sales_ecom     = 0 THEN v_errors := v_errors || '  [FAIL] ce_sales SA_ECOM          = 0 rows'          || chr(10); END IF;
+    IF v_sales_total    = 0 THEN v_errors := v_errors || '  [FAIL] ce_sales TOTAL            = 0 rows'          || chr(10); END IF;
+
+    -- ── Final verdict ────────────────────────────────────────────
+    IF v_errors <> '' THEN
+        RAISE EXCEPTION E'BL_3NF load verification FAILED - empty tables detected:\n%', v_errors;
+    END IF;
+
+    RAISE NOTICE '  [OK] All tables passed row-count verification.';
     RAISE NOTICE '  BL_3NF load completed successfully.';
     RAISE NOTICE '=================================================================';
 END;
