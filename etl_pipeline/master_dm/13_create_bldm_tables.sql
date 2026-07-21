@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS bl_dm.dim_employees (
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_employees         PRIMARY KEY (employee_surr_id),
-    CONSTRAINT uq_dim_employees_src_id  UNIQUE      (employee_src_id),
+    CONSTRAINT uq_dim_employees_src_id  UNIQUE      (employee_src_id, source_system),
     CONSTRAINT chk_dim_employees_gender CHECK (employee_gender IN ('M', 'F', 'n/a'))
 );
 
@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS bl_dm.dim_customers_scd (
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_customers_scd         PRIMARY KEY (customer_surr_id),
+    CONSTRAINT uq_dim_customers_src_id  UNIQUE      (customer_src_id, source_system),
     CONSTRAINT chk_dim_customers_is_active  CHECK       (is_active IN ('Y', 'N')),
     CONSTRAINT chk_dim_customers_gender CHECK (customer_gender IN ('M', 'F', 'n/a'))
 );
@@ -323,6 +324,7 @@ CREATE TABLE IF NOT EXISTS bl_dm.dim_products_scd (
     source_system               VARCHAR(50)     NOT NULL,
     source_entity               VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_dim_products_scd          PRIMARY KEY (product_surr_id),
+    CONSTRAINT uq_dim_product_src_id  UNIQUE      (product_src_id, source_system),
     CONSTRAINT chk_dim_products_is_active   CHECK       (is_active IN ('Y', 'N'))
 );
 
