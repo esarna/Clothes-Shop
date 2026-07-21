@@ -45,8 +45,8 @@ SELECT
     src.payment_type_src_id,
     src.payment_type_name,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_PAYMENT_TYPES'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_payment_types src
 WHERE src.payment_type_id > 0   -- skip default row
   AND NOT EXISTS (
@@ -112,8 +112,8 @@ SELECT
     COALESCE(loc.location_postal_code,  'n/a'),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_EMPLOYEES'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_employees src
 LEFT JOIN bl_3nf.ce_locations loc
        ON loc.location_id = src.employee_location_id
@@ -122,6 +122,7 @@ WHERE src.employee_id > 0   -- skip default row
       SELECT 1
       FROM   bl_dm.dim_employees tgt
       WHERE  tgt.employee_src_id = src.employee_src_id
+      AND  tgt.source_system   = src.source_system
   );
 
 -- ------------------------------------------------------------
@@ -213,8 +214,8 @@ SELECT
     COALESCE(loc.location_postal_code,  'n/a'),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_STORES'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_stores src
 LEFT JOIN bl_3nf.ce_store_zones zon
        ON zon.store_zone_id  = src.store_zone_id
@@ -242,8 +243,8 @@ SET
     store_state         = COALESCE(loc.location_state,       'n/a'),
     store_postal_code   = COALESCE(loc.location_postal_code, 'n/a'),
     ta_update_dt        = CURRENT_TIMESTAMP,
-    source_system       = 'BL_3NF',
-    source_entity       = 'CE_STORES'
+    source_system           = src.source_system,
+    source_entity           = src.source_entity
 FROM bl_3nf.ce_stores src
 LEFT JOIN bl_3nf.ce_store_zones zon
        ON zon.store_zone_id = src.store_zone_id
@@ -360,8 +361,8 @@ SELECT
     'Y',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_CUSTOMERS_SCD'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_customers_scd src
 LEFT JOIN bl_3nf.ce_locations loc
        ON loc.location_id = src.customer_location_id
@@ -424,8 +425,8 @@ SELECT
     'Y',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_CUSTOMERS_SCD'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_customers_scd src
 LEFT JOIN bl_3nf.ce_locations loc
        ON loc.location_id = src.customer_location_id
@@ -547,8 +548,8 @@ SELECT
     'Y',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_PRODUCTS_SCD'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_products_scd src
 LEFT JOIN bl_3nf.ce_product_subcategories  sub
        ON sub.product_subcategory_id  = src.product_subcategory_id
@@ -616,8 +617,8 @@ SELECT
     'Y',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    'BL_3NF',
-    'CE_PRODUCTS_SCD'
+    src.source_system,
+    src.source_entity
 FROM bl_3nf.ce_products_scd src
 LEFT JOIN bl_3nf.ce_product_subcategories  sub
        ON sub.product_subcategory_id  = src.product_subcategory_id
