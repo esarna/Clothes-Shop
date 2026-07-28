@@ -330,6 +330,7 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_product_top_categories tgt
             WHERE  tgt.product_top_category_src_id = v_rec.product_top_category_src_id
+            AND tgt.source_system = v_rec.source_system
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -353,8 +354,9 @@ BEGIN
           AND TRIM(top_category) <> ''
     ) src
     WHERE tgt.product_top_category_src_id = src.product_top_category_src_id
-      AND tgt.product_top_category_id    > 0   -- never update default row
-      AND tgt.product_top_category_name  <> src.product_top_category_name;
+        AND tgt.source_system = src.source_system
+        AND tgt.product_top_category_id    > 0   -- never update default row
+        AND tgt.product_top_category_name  <> src.product_top_category_name;
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -400,47 +402,29 @@ RETURNS TABLE (
 LANGUAGE plpgsql AS $$
 BEGIN
     RETURN QUERY
-    SELECT
-        -- NK from whichever source has it
-        COALESCE(r.product_category_src_id,
-                e.product_category_src_id)          AS product_category_src_id,
-        -- Name from whichever source has it (retail preferred)
-        COALESCE(r.product_category_name,
-                e.product_category_name)            AS product_category_name,
-        -- top_category_src_id ONLY from retail (ecom has NULL)
-        r.top_category_src_id                        AS top_category_src_id,
-        -- source_system: both if overlap, retail if retail-only, ecom if ecom-only
-        CASE
-            WHEN r.product_category_src_id IS NOT NULL
-            AND e.product_category_src_id IS NOT NULL THEN 'SA_RETAIL/SA_ECOM'
-            WHEN r.product_category_src_id IS NOT NULL THEN 'SA_RETAIL'
-            ELSE 'SA_ECOM'
-        END::VARCHAR                                 AS source_system,
-        CASE
-            WHEN r.product_category_src_id IS NOT NULL
-            AND e.product_category_src_id IS NOT NULL THEN 'SRC_RETAIL_SALES/SRC_ECOM_SALES'
-            WHEN r.product_category_src_id IS NOT NULL THEN 'SRC_RETAIL_SALES'
-            ELSE 'SRC_ECOM_SALES'
-        END::VARCHAR                                 AS source_entity
-    FROM (
-        -- Retail side: category + top_category
+        -- Retail categories (with top_category)
         SELECT DISTINCT
             UPPER(TRIM(r.category))::VARCHAR         AS product_category_src_id,
             INITCAP(TRIM(r.category))::VARCHAR       AS product_category_name,
-            UPPER(TRIM(r.top_category))::VARCHAR     AS top_category_src_id
+            UPPER(TRIM(r.top_category))::VARCHAR     AS top_category_src_id,
+            'SA_RETAIL'::VARCHAR                     AS source_system,
+            'SRC_RETAIL_SALES'::VARCHAR              AS source_entity
         FROM sa_retail.src_retail_sales r
         WHERE r.category IS NOT NULL
         AND TRIM(r.category) <> ''
-    ) r
-    FULL OUTER JOIN (
-        -- Ecom side: product_type (no top category available)
+    
+        UNION ALL
+    
+        -- Ecom categories (no top_category)
         SELECT DISTINCT
             UPPER(TRIM(e.product_type))::VARCHAR     AS product_category_src_id,
-            INITCAP(TRIM(e.product_type))::VARCHAR   AS product_category_name
+            INITCAP(TRIM(e.product_type))::VARCHAR   AS product_category_name,
+            NULL::VARCHAR                            AS top_category_src_id,
+            'SA_ECOM'::VARCHAR                       AS source_system,
+            'SRC_ECOM_SALES'::VARCHAR                AS source_entity
         FROM sa_ecom.src_ecom_sales e
         WHERE e.product_type IS NOT NULL
-        AND TRIM(e.product_type) <> ''
-    ) e ON r.product_category_src_id = e.product_category_src_id;
+        AND TRIM(e.product_type) <> '';
 END;
 $$;
 
@@ -482,7 +466,8 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_product_categories tgt
             WHERE  tgt.product_category_src_id = v_rec.product_category_src_id
-        );
+            AND  tgt.source_system            = v_rec.source_system
+         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
     END LOOP;
@@ -495,14 +480,7 @@ BEGIN
         ta_update_dt                = CURRENT_TIMESTAMP,
         source_system               = src.source_system,
         source_entity               = src.source_entity
-    FROM (
-        SELECT DISTINCT ON (product_category_src_id)
-            product_category_src_id,
-            product_category_name,
-            top_category_src_id,
-            source_system,
-            source_entity
-        FROM (
+     FROM (
             SELECT DISTINCT
                 UPPER(TRIM(r.category))         AS product_category_src_id,
                 INITCAP(TRIM(r.category))       AS product_category_name,
@@ -510,11 +488,10 @@ BEGIN
                 'SA_RETAIL'                     AS source_system,
                 'SRC_RETAIL_SALES'              AS source_entity
             FROM sa_retail.src_retail_sales r
-            WHERE r.category IS NOT NULL
-            AND TRIM(r.category) <> ''
-
+            WHERE r.category IS NOT NULL AND TRIM(r.category) <> ''
+    
             UNION ALL
-
+    
             SELECT DISTINCT
                 UPPER(TRIM(e.product_type))     AS product_category_src_id,
                 INITCAP(TRIM(e.product_type))   AS product_category_name,
@@ -522,20 +499,17 @@ BEGIN
                 'SA_ECOM'                       AS source_system,
                 'SRC_ECOM_SALES'                AS source_entity
             FROM sa_ecom.src_ecom_sales e
-            WHERE e.product_type IS NOT NULL
-            AND TRIM(e.product_type) <> ''
-        ) combined
-        -- SA_RETAIL first — it has top_category_src_id, ecom does not
-        ORDER BY product_category_src_id, source_system ASC
-    ) src
+            WHERE e.product_type IS NOT NULL AND TRIM(e.product_type) <> ''
+     ) src
     LEFT JOIN bl_3nf.ce_product_top_categories top
            ON top.product_top_category_src_id = src.top_category_src_id
     WHERE tgt.product_category_src_id = src.product_category_src_id
-      AND tgt.product_category_id    > 0
-      AND (
-            tgt.product_category_name   <> src.product_category_name
-         OR tgt.product_top_category_id <> COALESCE(top.product_top_category_id, -1)
-      );
+        AND tgt.source_system            = src.source_system
+        AND tgt.product_category_id    > 0
+        AND (
+                tgt.product_category_name   <> src.product_category_name
+            OR tgt.product_top_category_id <> COALESCE(top.product_top_category_id, -1)
+        );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -581,45 +555,27 @@ RETURNS TABLE (
 LANGUAGE plpgsql AS $$
 BEGIN
     RETURN QUERY
-    SELECT
-        COALESCE(r.product_subcategory_src_id,
-                e.product_subcategory_src_id)       AS product_subcategory_src_id,
-        COALESCE(r.product_subcategory_name,
-                e.product_subcategory_name)         AS product_subcategory_name,
-        -- category_src_id: retail has actual category, ecom has product_type
-        -- when NK exists in both: retail category is preferred (more complete)
-        COALESCE(r.category_src_id,
-                e.category_src_id)                  AS category_src_id,
-        CASE
-            WHEN r.product_subcategory_src_id IS NOT NULL
-            AND e.product_subcategory_src_id IS NOT NULL THEN 'SA_RETAIL/SA_ECOM'
-            WHEN r.product_subcategory_src_id IS NOT NULL THEN 'SA_RETAIL'
-            ELSE 'SA_ECOM'
-        END::VARCHAR                                 AS source_system,
-        CASE
-            WHEN r.product_subcategory_src_id IS NOT NULL
-            AND e.product_subcategory_src_id IS NOT NULL THEN 'SRC_RETAIL_SALES/SRC_ECOM_SALES'
-            WHEN r.product_subcategory_src_id IS NOT NULL THEN 'SRC_RETAIL_SALES'
-            ELSE 'SRC_ECOM_SALES'
-        END::VARCHAR                                 AS source_entity
-    FROM (
         SELECT DISTINCT
             UPPER(TRIM(r.subcategory))::VARCHAR      AS product_subcategory_src_id,
             INITCAP(TRIM(r.subcategory))::VARCHAR    AS product_subcategory_name,
-            UPPER(TRIM(r.category))::VARCHAR         AS category_src_id
+            UPPER(TRIM(r.category))::VARCHAR         AS category_src_id,
+            'SA_RETAIL'::VARCHAR                     AS source_system,
+            'SRC_RETAIL_SALES'::VARCHAR              AS source_entity
         FROM sa_retail.src_retail_sales r
         WHERE r.subcategory IS NOT NULL
         AND TRIM(r.subcategory) <> ''
-    ) r
-    FULL OUTER JOIN (
+    
+        UNION ALL
+    
         SELECT DISTINCT
             UPPER(TRIM(e.details))::VARCHAR          AS product_subcategory_src_id,
             INITCAP(TRIM(e.details))::VARCHAR        AS product_subcategory_name,
-            UPPER(TRIM(e.product_type))::VARCHAR     AS category_src_id
+            UPPER(TRIM(e.product_type))::VARCHAR     AS category_src_id,
+            'SA_ECOM'::VARCHAR                       AS source_system,
+            'SRC_ECOM_SALES'::VARCHAR                AS source_entity
         FROM sa_ecom.src_ecom_sales e
         WHERE e.details IS NOT NULL
-        AND TRIM(e.details) <> ''
-    ) e ON r.product_subcategory_src_id = e.product_subcategory_src_id;
+        AND TRIM(e.details) <> '';
 END;
 $$;
 
@@ -656,11 +612,13 @@ BEGIN
         FROM (SELECT 1) dummy
         -- LEFT JOIN to resolve parent FK (COALESCE to -1 if not found)
         LEFT JOIN bl_3nf.ce_product_categories cat
-               ON cat.product_category_src_id = v_rec.category_src_id
+                ON cat.product_category_src_id = v_rec.category_src_id
+                AND cat.source_system            = v_rec.source_system
         WHERE NOT EXISTS (
             SELECT 1
             FROM   bl_3nf.ce_product_subcategories tgt
             WHERE  tgt.product_subcategory_src_id = v_rec.product_subcategory_src_id
+            AND  tgt.source_system                = v_rec.source_system
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -674,47 +632,38 @@ BEGIN
         ta_update_dt                = CURRENT_TIMESTAMP,
         source_system               = src.source_system,
         source_entity               = src.source_entity
-     FROM (
-        SELECT DISTINCT ON (product_subcategory_src_id)
-            product_subcategory_src_id,
-            product_subcategory_name,
-            category_src_id,
-            source_system,
-            source_entity
-        FROM (
-            SELECT DISTINCT
-                UPPER(TRIM(r.subcategory))      AS product_subcategory_src_id,
-                INITCAP(TRIM(r.subcategory))    AS product_subcategory_name,
-                UPPER(TRIM(r.category))         AS category_src_id,
-                'SA_RETAIL'                     AS source_system,
-                'SRC_RETAIL_SALES'              AS source_entity
-            FROM sa_retail.src_retail_sales r
-            WHERE r.subcategory IS NOT NULL
-            AND TRIM(r.subcategory) <> ''
+    FROM (
+        SELECT DISTINCT
+            UPPER(TRIM(r.subcategory))      AS product_subcategory_src_id,
+            INITCAP(TRIM(r.subcategory))    AS product_subcategory_name,
+            UPPER(TRIM(r.category))         AS category_src_id,
+            'SA_RETAIL'                     AS source_system,
+            'SRC_RETAIL_SALES'              AS source_entity
+        FROM sa_retail.src_retail_sales r
+        WHERE r.subcategory IS NOT NULL AND TRIM(r.subcategory) <> ''
 
-            UNION ALL
+        UNION ALL
 
-            SELECT DISTINCT
-                UPPER(TRIM(e.details))          AS product_subcategory_src_id,
-                INITCAP(TRIM(e.details))        AS product_subcategory_name,
-                UPPER(TRIM(e.product_type))     AS category_src_id,
-                'SA_ECOM'                       AS source_system,
-                'SRC_ECOM_SALES'                AS source_entity
-            FROM sa_ecom.src_ecom_sales e
-            WHERE e.details IS NOT NULL
-            AND TRIM(e.details) <> ''
-        ) combined
-        ORDER BY product_subcategory_src_id,
-                CASE WHEN source_system = 'SA_RETAIL' THEN 0 ELSE 1 END ASC
+        SELECT DISTINCT
+            UPPER(TRIM(e.details))          AS product_subcategory_src_id,
+            INITCAP(TRIM(e.details))        AS product_subcategory_name,
+            UPPER(TRIM(e.product_type))     AS category_src_id,
+            'SA_ECOM'                       AS source_system,
+            'SRC_ECOM_SALES'                AS source_entity
+        FROM sa_ecom.src_ecom_sales e
+        WHERE e.details IS NOT NULL AND TRIM(e.details) <> ''
     ) src
     LEFT JOIN bl_3nf.ce_product_categories cat
-           ON cat.product_category_src_id = src.category_src_id
+            ON cat.product_category_src_id = src.category_src_id
+            AND cat.source_system          = src.source_system
+
     WHERE tgt.product_subcategory_src_id = src.product_subcategory_src_id
-      AND tgt.product_subcategory_id    > 0
-      AND (
-            tgt.product_subcategory_name <> src.product_subcategory_name
-         OR tgt.product_category_id      <> COALESCE(cat.product_category_id, -1)
-      );
+        AND tgt.source_system               = src.source_system
+        AND tgt.product_subcategory_id    > 0
+        AND (
+                tgt.product_subcategory_name <> src.product_subcategory_name
+            OR tgt.product_category_id      <> COALESCE(cat.product_category_id, -1)
+        );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -785,7 +734,7 @@ BEGIN
             COALESCE(TRIM(store_address),      'n/a')::VARCHAR    AS location_address,
             COALESCE(TRIM(store_postal_code),  'n/a')::VARCHAR    AS location_postal_code,
             COALESCE(TRIM(store_city),         'n/a')::VARCHAR    AS location_city,
-            COALESCE(UPPER(TRIM(store_state)), 'na')::VARCHAR     AS location_state,
+            COALESCE(UPPER(TRIM(store_state)), 'n/a')::VARCHAR     AS location_state,
             'SA_RETAIL'::VARCHAR                                   AS source_system,
             'SRC_RETAIL_SALES'::VARCHAR                            AS source_entity
         FROM sa_retail.src_retail_sales
@@ -800,7 +749,7 @@ BEGIN
             COALESCE(TRIM(customer_address),      'n/a')::VARCHAR   AS location_address,
             COALESCE(TRIM(customer_postal_code),  'n/a')::VARCHAR   AS location_postal_code,
             COALESCE(TRIM(customer_city),         'n/a')::VARCHAR   AS location_city,
-            COALESCE(UPPER(TRIM(customer_state)), 'na')::VARCHAR    AS location_state,
+            COALESCE(UPPER(TRIM(customer_state)), 'n/a')::VARCHAR    AS location_state,
             'SA_RETAIL'::VARCHAR                                     AS source_system,
             'SRC_RETAIL_SALES'::VARCHAR                              AS source_entity
         FROM sa_retail.src_retail_sales
@@ -815,7 +764,7 @@ BEGIN
             COALESCE(TRIM(user_address),      'n/a')::VARCHAR     AS location_address,
             COALESCE(TRIM(user_postal_code),  'n/a')::VARCHAR     AS location_postal_code,
             COALESCE(TRIM(user_city),         'n/a')::VARCHAR     AS location_city,
-            COALESCE(UPPER(TRIM(user_state)), 'na')::VARCHAR      AS location_state,
+            COALESCE(UPPER(TRIM(user_state)), 'n/a')::VARCHAR      AS location_state,
             'SA_ECOM'::VARCHAR                                     AS source_system,
             'SRC_ECOM_SALES'::VARCHAR                              AS source_entity
         FROM sa_ecom.src_ecom_sales
@@ -830,7 +779,7 @@ BEGIN
             COALESCE(TRIM(employee_address),      'n/a')::VARCHAR   AS location_address,
             COALESCE(TRIM(employee_postal_code),  'n/a')::VARCHAR   AS location_postal_code,
             COALESCE(TRIM(employee_city),         'n/a')::VARCHAR   AS location_city,
-            COALESCE(UPPER(TRIM(employee_state)), 'na')::VARCHAR    AS location_state,
+            COALESCE(UPPER(TRIM(employee_state)), 'n/a')::VARCHAR    AS location_state,
             'SA_RETAIL'::VARCHAR                                     AS source_system,
             'SRC_RETAIL_SALES'::VARCHAR                              AS source_entity
         FROM sa_retail.src_retail_sales
@@ -845,7 +794,7 @@ BEGIN
             COALESCE(TRIM(ee_address),      'n/a')::VARCHAR    AS location_address,
             COALESCE(TRIM(ee_postal_code),  'n/a')::VARCHAR    AS location_postal_code,
             COALESCE(TRIM(ee_city),         'n/a')::VARCHAR    AS location_city,
-            COALESCE(UPPER(TRIM(ee_state)), 'na')::VARCHAR     AS location_state,
+            COALESCE(UPPER(TRIM(ee_state)), 'n/a')::VARCHAR     AS location_state,
             'SA_ECOM'::VARCHAR                                  AS source_system,
             'SRC_ECOM_SALES'::VARCHAR                           AS source_entity
         FROM sa_ecom.src_ecom_sales
@@ -893,6 +842,7 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_locations tgt
             WHERE  tgt.location_src_id = v_rec.location_src_id
+                AND tgt.source_system = v_rec.source_system
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -910,7 +860,7 @@ BEGIN
                 || '_' || COALESCE(TRIM(store_postal_code), 'n/a')
                                                 AS location_src_id,
             COALESCE(TRIM(store_city),         'n/a') AS location_city,
-            COALESCE(UPPER(TRIM(store_state)), 'na')  AS location_state
+            COALESCE(UPPER(TRIM(store_state)), 'n/a')  AS location_state
         FROM sa_retail.src_retail_sales
         WHERE store_address IS NOT NULL AND TRIM(store_address) <> ''
 
@@ -921,7 +871,7 @@ BEGIN
                 || '_' || COALESCE(TRIM(customer_postal_code), 'n/a')
                                                 AS location_src_id,
             COALESCE(TRIM(customer_city),         'n/a') AS location_city,
-            COALESCE(UPPER(TRIM(customer_state)), 'na')  AS location_state
+            COALESCE(UPPER(TRIM(customer_state)), 'n/a')  AS location_state
         FROM sa_retail.src_retail_sales
         WHERE customer_address IS NOT NULL AND TRIM(customer_address) <> ''
 
@@ -932,7 +882,7 @@ BEGIN
                 || '_' || COALESCE(TRIM(employee_postal_code), 'n/a')
                                                 AS location_src_id,
             COALESCE(TRIM(employee_city),         'n/a') AS location_city,
-            COALESCE(UPPER(TRIM(employee_state)), 'na')  AS location_state
+            COALESCE(UPPER(TRIM(employee_state)), 'n/a')  AS location_state
         FROM sa_retail.src_retail_sales
         WHERE employee_address IS NOT NULL AND TRIM(employee_address) <> ''
 
@@ -943,7 +893,7 @@ BEGIN
                 || '_' || COALESCE(TRIM(user_postal_code), 'n/a')
                                                 AS location_src_id,
             COALESCE(TRIM(user_city),         'n/a') AS location_city,
-            COALESCE(UPPER(TRIM(user_state)), 'na')  AS location_state
+            COALESCE(UPPER(TRIM(user_state)), 'n/a')  AS location_state
         FROM sa_ecom.src_ecom_sales
         WHERE user_address IS NOT NULL AND TRIM(user_address) <> ''
 
@@ -954,16 +904,16 @@ BEGIN
                 || '_' || COALESCE(TRIM(ee_postal_code), 'n/a')
                                                 AS location_src_id,
             COALESCE(TRIM(ee_city),         'n/a') AS location_city,
-            COALESCE(UPPER(TRIM(ee_state)), 'na')  AS location_state
+            COALESCE(UPPER(TRIM(ee_state)), 'n/a')  AS location_state
         FROM sa_ecom.src_ecom_sales
         WHERE ee_address IS NOT NULL AND TRIM(ee_address) <> ''
     ) src
     WHERE tgt.location_src_id = src.location_src_id
-      AND tgt.location_id    > 0
-      AND (
-            tgt.location_city  <> src.location_city
-         OR tgt.location_state <> src.location_state
-      );
+        AND tgt.location_id    > 0
+        AND (
+                tgt.location_city  <> src.location_city
+            OR tgt.location_state <> src.location_state
+        );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -1019,7 +969,7 @@ BEGIN
                 TRIM(r.employee_id)::VARCHAR                              AS employee_src_id,
                 COALESCE(TRIM(r.employee_name),         'n/a')::VARCHAR   AS employee_name,
                 COALESCE(UPPER(LEFT(TRIM(
-                    r.employee_gender),1)),             'n')::VARCHAR     AS employee_gender,
+                    r.employee_gender),1)),             'n/a')::VARCHAR     AS employee_gender,
                 COALESCE(TRIM(r.employee_email),        'n/a')::VARCHAR   AS employee_email,
                 COALESCE(TRIM(r.employee_phone_number), 'n/a')::VARCHAR   AS employee_phone_number,
                 (COALESCE(TRIM(r.employee_address),      'n/a')
@@ -1030,7 +980,7 @@ BEGIN
             FROM sa_retail.src_retail_sales r
             WHERE r.employee_id IS NOT NULL
             AND TRIM(r.employee_id) <> ''
-            ORDER BY TRIM(r.employee_id), r.ta_insert_dt DESC
+            ORDER BY TRIM(r.employee_id), r.ta_insert_dt DESC, r.transaction_date DESC
         ) retail
 
         UNION ALL
@@ -1041,7 +991,7 @@ BEGIN
                 TRIM(e.ee_id)::VARCHAR                                    AS employee_src_id,
                 COALESCE(TRIM(e.ee_name),           'n/a')::VARCHAR       AS employee_name,
                 COALESCE(UPPER(LEFT(TRIM(
-                    e.ee_gender),1)),               'n')::VARCHAR         AS employee_gender,
+                    e.ee_gender),1)),               'n/a')::VARCHAR         AS employee_gender,
                 COALESCE(TRIM(e.ee_email),          'n/a')::VARCHAR       AS employee_email,
                 COALESCE(TRIM(e.ee_phone_number),   'n/a')::VARCHAR       AS employee_phone_number,
                 (COALESCE(TRIM(e.ee_address),        'n/a')
@@ -1052,7 +1002,7 @@ BEGIN
             FROM sa_ecom.src_ecom_sales e
             WHERE e.ee_id IS NOT NULL
             AND TRIM(e.ee_id) <> ''
-            ORDER BY TRIM(e.ee_id), e.ta_insert_dt DESC
+            ORDER BY TRIM(e.ee_id), e.ta_insert_dt DESC, e.transaction_date DESC
         ) ecom;
 END;
 $$;
@@ -1101,6 +1051,7 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_employees tgt
             WHERE  tgt.employee_src_id = v_rec.employee_src_id
+            AND tgt.source_system = v_rec.source_system
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -1123,7 +1074,7 @@ BEGIN
                 TRIM(employee_id)                               AS employee_src_id,
                 COALESCE(TRIM(employee_name),         'n/a')    AS employee_name,
                 COALESCE(UPPER(LEFT(TRIM(
-                    employee_gender),1)),             'n')      AS employee_gender,
+                    employee_gender),1)),             'n/a')      AS employee_gender,
                 COALESCE(TRIM(employee_email),        'n/a')    AS employee_email,
                 COALESCE(TRIM(employee_phone_number), 'n/a')    AS employee_phone_number,
                 COALESCE(TRIM(employee_address),      'n/a')
@@ -1133,7 +1084,7 @@ BEGIN
                 'SRC_RETAIL_SALES'                              AS source_entity
             FROM sa_retail.src_retail_sales
             WHERE employee_id IS NOT NULL AND TRIM(employee_id) <> ''
-            ORDER BY TRIM(employee_id), ta_insert_dt DESC
+            ORDER BY TRIM(employee_id), ta_insert_dt DESC, transaction_date DESC
         ) retail
 
         UNION ALL
@@ -1143,7 +1094,7 @@ BEGIN
                 TRIM(ee_id)                                     AS employee_src_id,
                 COALESCE(TRIM(ee_name),           'n/a')        AS employee_name,
                 COALESCE(UPPER(LEFT(TRIM(
-                    ee_gender),1)),               'n')          AS employee_gender,
+                    ee_gender),1)),               'n/a')          AS employee_gender,
                 COALESCE(TRIM(ee_email),          'n/a')        AS employee_email,
                 COALESCE(TRIM(ee_phone_number),   'n/a')        AS employee_phone_number,
                 COALESCE(TRIM(ee_address),        'n/a')
@@ -1153,20 +1104,21 @@ BEGIN
                 'SRC_ECOM_SALES'                                AS source_entity
             FROM sa_ecom.src_ecom_sales
             WHERE ee_id IS NOT NULL AND TRIM(ee_id) <> ''
-            ORDER BY TRIM(ee_id), ta_insert_dt DESC
+            ORDER BY TRIM(ee_id), ta_insert_dt DESC, transaction_date DESC
         ) ecom
     ) src
     LEFT JOIN bl_3nf.ce_locations loc
            ON loc.location_src_id = src.location_src_id
     WHERE tgt.employee_src_id = src.employee_src_id
-      AND tgt.employee_id    > 0
-      AND (
-            tgt.employee_name         <> src.employee_name
-         OR tgt.employee_gender       <> src.employee_gender
-         OR tgt.employee_email        <> src.employee_email
-         OR tgt.employee_phone_number <> src.employee_phone_number
-         OR tgt.employee_location_id  <> COALESCE(loc.location_id, -1)
-      );
+        AND tgt.source_system = src.source_system
+        AND tgt.employee_id    > 0
+        AND (
+                tgt.employee_name         <> src.employee_name
+            OR tgt.employee_gender       <> src.employee_gender
+            OR tgt.employee_email        <> src.employee_email
+            OR tgt.employee_phone_number <> src.employee_phone_number
+            OR tgt.employee_location_id  <> COALESCE(loc.location_id, -1)
+        );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -1228,7 +1180,7 @@ BEGIN
         FROM sa_retail.src_retail_sales
         WHERE store_code IS NOT NULL
           AND TRIM(store_code) <> ''
-        ORDER BY TRIM(store_code), ta_insert_dt DESC
+        ORDER BY TRIM(store_code), ta_insert_dt DESC, transaction_date DESC
     ) retail
 
     UNION ALL
@@ -1287,6 +1239,7 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_stores tgt
             WHERE  tgt.store_src_id = v_rec.store_src_id
+            AND tgt.source_system = v_rec.source_system
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -1311,16 +1264,17 @@ BEGIN
             'SRC_RETAIL_SALES'                              AS source_entity
         FROM sa_retail.src_retail_sales
         WHERE store_code IS NOT NULL AND TRIM(store_code) <> ''
-        ORDER BY TRIM(store_code), ta_insert_dt DESC
+        ORDER BY TRIM(store_code), ta_insert_dt DESC, transaction_date DESC
     ) src
     LEFT JOIN bl_3nf.ce_store_zones zon ON zon.store_zone_src_id = src.zone_src_id
     LEFT JOIN bl_3nf.ce_locations   loc ON loc.location_src_id   = src.location_src_id
     WHERE tgt.store_src_id   = src.store_src_id
-      AND tgt.store_id      > 0
-      AND (
-            tgt.store_zone_id     <> COALESCE(zon.store_zone_id, -1)
-         OR tgt.store_location_id <> COALESCE(loc.location_id,   -1)
-      );
+        AND tgt.source_system = src.source_system
+        AND tgt.store_id      > 0
+        AND (
+                tgt.store_zone_id     <> COALESCE(zon.store_zone_id, -1)
+            OR tgt.store_location_id <> COALESCE(loc.location_id,   -1)
+        );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -1396,7 +1350,7 @@ BEGIN
                 TRIM(r.customer_id)::VARCHAR                              AS customer_src_id,
                 COALESCE(TRIM(r.customer_name),         'n/a')::VARCHAR   AS customer_name,
                 COALESCE(UPPER(LEFT(TRIM(
-                    r.customer_gender),1)),             'n')::VARCHAR     AS customer_gender,
+                    r.customer_gender),1)),             'n/a')::VARCHAR     AS customer_gender,
                 'n/a'::VARCHAR                                            AS customer_email,
                 COALESCE(TRIM(r.customer_phone_number), 'n/a')::VARCHAR   AS customer_phone_number,
                 (COALESCE(TRIM(r.customer_address),      'n/a')
@@ -1406,7 +1360,7 @@ BEGIN
                 'SRC_RETAIL_SALES'::VARCHAR                               AS source_entity
             FROM sa_retail.src_retail_sales r
             WHERE r.customer_id IS NOT NULL AND TRIM(r.customer_id) <> ''
-            ORDER BY TRIM(r.customer_id), r.ta_insert_dt DESC
+            ORDER BY TRIM(r.customer_id), r.ta_insert_dt DESC, r.transaction_date DESC
         ) retail
     
         UNION
@@ -1416,7 +1370,7 @@ BEGIN
                 TRIM(e.user_id)::VARCHAR                                  AS customer_src_id,
                 COALESCE(TRIM(e.user_name),             'n/a')::VARCHAR   AS customer_name,
                 COALESCE(UPPER(LEFT(TRIM(
-                    e.user_gender),1)),                 'n')::VARCHAR     AS customer_gender,
+                    e.user_gender),1)),                 'n/a')::VARCHAR     AS customer_gender,
                 COALESCE(TRIM(e.user_email),            'n/a')::VARCHAR   AS customer_email,
                 COALESCE(TRIM(e.user_phone_number),     'n/a')::VARCHAR   AS customer_phone_number,
                 (COALESCE(TRIM(e.user_address),          'n/a')
@@ -1426,7 +1380,7 @@ BEGIN
                 'SRC_ECOM_SALES'::VARCHAR                                 AS source_entity
             FROM sa_ecom.src_ecom_sales e
             WHERE e.user_id IS NOT NULL AND TRIM(e.user_id) <> ''
-            ORDER BY TRIM(e.user_id), e.ta_insert_dt DESC
+            ORDER BY TRIM(e.user_id), e.ta_insert_dt DESC, e.transaction_date DESC
         ) ecom;
 END;
 $$;
@@ -1445,39 +1399,56 @@ BEGIN
         is_active   = 'N',
         ta_update_dt = CURRENT_TIMESTAMP
     FROM (
-        -- SA_RETAIL customers
         SELECT * FROM (
-            SELECT DISTINCT ON (TRIM(customer_id))
-                TRIM(customer_id)                               AS customer_src_id,
-                COALESCE(TRIM(customer_address),      'n/a')
-                    || '_' || COALESCE(TRIM(customer_postal_code), 'n/a')
-                                                                AS location_src_id
-            FROM sa_retail.src_retail_sales
-            WHERE customer_id IS NOT NULL AND TRIM(customer_id) <> ''
-            ORDER BY TRIM(customer_id), ta_insert_dt DESC
+            SELECT DISTINCT ON (TRIM(r.customer_id))
+                TRIM(r.customer_id)                                     AS customer_src_id,
+                COALESCE(TRIM(r.customer_name),         'n/a')          AS customer_name,
+                COALESCE(UPPER(LEFT(TRIM(
+                    r.customer_gender),1)),             'n/a')            AS customer_gender,
+                'n/a'                                                   AS customer_email,
+                COALESCE(TRIM(r.customer_phone_number), 'n/a')          AS customer_phone_number,
+                COALESCE(TRIM(r.customer_address),      'n/a')
+                    || '_' || COALESCE(TRIM(r.customer_postal_code), 'n/a')
+                                                                        AS location_src_id,
+                'SA_RETAIL'                                             AS source_system
+            FROM sa_retail.src_retail_sales r
+            WHERE r.customer_id IS NOT NULL AND TRIM(r.customer_id) <> ''
+            ORDER BY TRIM(r.customer_id), r.ta_insert_dt DESC, r.transaction_date DESC
         ) retail
 
         UNION
 
-        -- SA_ECOM customers
         SELECT * FROM (
-            SELECT DISTINCT ON (TRIM(user_id))
-                TRIM(user_id)                                   AS customer_src_id,
-                COALESCE(TRIM(user_address),      'n/a')
-                    || '_' || COALESCE(TRIM(user_postal_code), 'n/a')
-                                                                AS location_src_id
-            FROM sa_ecom.src_ecom_sales
-            WHERE user_id IS NOT NULL AND TRIM(user_id) <> ''
-            ORDER BY TRIM(user_id), ta_insert_dt DESC
+            SELECT DISTINCT ON (TRIM(e.user_id))
+                TRIM(e.user_id)                                         AS customer_src_id,
+                COALESCE(TRIM(e.user_name),             'n/a')          AS customer_name,
+                COALESCE(UPPER(LEFT(TRIM(
+                    e.user_gender),1)),                 'n/a')            AS customer_gender,
+                COALESCE(TRIM(e.user_email),            'n/a')          AS customer_email,
+                COALESCE(TRIM(e.user_phone_number),     'n/a')          AS customer_phone_number,
+                COALESCE(TRIM(e.user_address),          'n/a')
+                    || '_' || COALESCE(TRIM(e.user_postal_code),  'n/a')
+                                                                        AS location_src_id,
+                'SA_ECOM'                                               AS source_system
+            FROM sa_ecom.src_ecom_sales e
+            WHERE e.user_id IS NOT NULL AND TRIM(e.user_id) <> ''
+            ORDER BY TRIM(e.user_id), e.ta_insert_dt DESC, e.user_id, e.transaction_date DESC
         ) ecom
     ) src
     LEFT JOIN bl_3nf.ce_locations loc
            ON loc.location_src_id = src.location_src_id
     WHERE tgt.customer_src_id  = src.customer_src_id
-      AND tgt.is_active        = 'Y'
-      AND tgt.customer_id     > 0
-      AND tgt.end_dt                 = DATE '9999-12-31'
-      AND tgt.customer_location_id <> COALESCE(loc.location_id, -1);
+        AND tgt.source_system = src.source_system
+        AND tgt.is_active        = 'Y'
+        AND tgt.customer_id     > 0
+        AND tgt.end_dt                 = DATE '9999-12-31'
+        AND (
+            tgt.customer_location_id  <> COALESCE(loc.location_id, -1)
+            OR tgt.customer_name         <> src.customer_name
+            OR tgt.customer_phone_number <> src.customer_phone_number
+            OR tgt.customer_email        <> src.customer_email
+            OR tgt.customer_gender       <> src.customer_gender
+       );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
 
@@ -1515,21 +1486,23 @@ BEGIN
         src.source_entity
     FROM bl_cl.fn_get_ce_customers_scd() src
     LEFT JOIN bl_3nf.ce_locations loc
-           ON loc.location_src_id = src.location_src_id
+            ON loc.location_src_id = src.location_src_id
     -- Only insert new version for customers whose previous row was just closed today
     WHERE EXISTS (
         SELECT 1
         FROM   bl_3nf.ce_customers_scd closed
         WHERE  closed.customer_src_id = src.customer_src_id
-          AND  closed.is_active       = 'N'
-          AND  closed.end_dt          = CURRENT_DATE - 1
+            AND closed.source_system = src.source_system
+            AND  closed.is_active       = 'N'
+            AND  closed.end_dt          = CURRENT_DATE - 1
     )
     AND NOT EXISTS (
         SELECT 1
         FROM   bl_3nf.ce_customers_scd active
         WHERE  active.customer_src_id = src.customer_src_id
-          AND  active.is_active       = 'Y'
-          AND  active.start_dt        = CURRENT_DATE
+            AND active.source_system = src.source_system
+            AND  active.is_active       = 'Y'
+            AND  active.start_dt        = CURRENT_DATE
     );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
@@ -1574,6 +1547,7 @@ BEGIN
         SELECT 1
         FROM   bl_3nf.ce_customers_scd tgt
         WHERE  tgt.customer_src_id = src.customer_src_id
+            AND tgt.source_system = src.source_system
     );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
@@ -1648,7 +1622,7 @@ BEGIN
         FROM sa_retail.src_retail_sales r
         WHERE r.product_code IS NOT NULL
           AND TRIM(r.product_code) <> ''
-        ORDER BY TRIM(r.product_code), r.ta_insert_dt DESC
+        ORDER BY TRIM(r.product_code), r.ta_insert_dt DESC, r.transaction_date DESC
     ) retail
 
     UNION
@@ -1667,7 +1641,7 @@ BEGIN
         FROM sa_ecom.src_ecom_sales e
         WHERE e.product_code IS NOT NULL
           AND TRIM(e.product_code) <> ''
-        ORDER BY TRIM(e.product_code), e.ta_insert_dt DESC
+        ORDER BY TRIM(e.product_code), e.ta_insert_dt DESC, e.transaction_date DESC
     ) ecom;
 END;
 $$;
@@ -1687,17 +1661,19 @@ BEGIN
         ta_update_dt = CURRENT_TIMESTAMP
     FROM bl_cl.fn_get_ce_products_scd() src
     LEFT JOIN bl_3nf.ce_product_subcategories sub
-           ON sub.product_subcategory_src_id = src.subcategory_src_id
+            ON sub.product_subcategory_src_id = src.subcategory_src_id
+            AND sub.source_system               = src.source_system
     WHERE tgt.product_src_id = src.product_src_id
-      AND tgt.is_active       = 'Y'
-      AND tgt.end_dt          = DATE '9999-12-31'
-      AND tgt.product_id      > 0   -- never touch default row
-      AND (
-            tgt.product_description <> src.product_description
-         OR tgt.product_colour      <> src.product_colour
-         OR tgt.product_size        <> src.product_size
-         -- IS DISTINCT FROM handles NULL vs NULL correctly:
-         OR tgt.product_min_amount  IS DISTINCT FROM src.product_min_amount
+        AND tgt.source_system = src.source_system
+        AND tgt.is_active       = 'Y'
+        AND tgt.end_dt          = DATE '9999-12-31'
+        AND tgt.product_id      > 0   -- never touch default row
+        AND (
+                tgt.product_description <> src.product_description
+            OR tgt.product_colour      <> src.product_colour
+            OR tgt.product_size        <> src.product_size
+            -- IS DISTINCT FROM handles NULL vs NULL correctly:
+            OR tgt.product_min_amount  IS DISTINCT FROM src.product_min_amount
       );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_updated := v_rows_updated + v_delta;
@@ -1736,22 +1712,25 @@ BEGIN
         src.source_entity
     FROM bl_cl.fn_get_ce_products_scd() src
     LEFT JOIN bl_3nf.ce_product_subcategories sub
-           ON sub.product_subcategory_src_id = src.subcategory_src_id
+            ON sub.product_subcategory_src_id = src.subcategory_src_id
+            AND sub.source_system               = src.source_system
     -- Insert only for products whose active row was just expired today (STEP A)
     WHERE EXISTS (
         SELECT 1
         FROM   bl_3nf.ce_products_scd closed
         WHERE  closed.product_src_id = src.product_src_id
-          AND  closed.is_active      = 'N'
-          AND  closed.end_dt         = CURRENT_DATE - 1
+            AND closed.source_system = src.source_system
+            AND  closed.is_active      = 'N'
+            AND  closed.end_dt         = CURRENT_DATE - 1
     )
     -- And no active version opened today yet
     AND NOT EXISTS (
         SELECT 1
         FROM   bl_3nf.ce_products_scd active
         WHERE  active.product_src_id = src.product_src_id
-          AND  active.is_active      = 'Y'
-          AND  active.start_dt       = CURRENT_DATE
+            AND active.source_system = src.source_system
+            AND  active.is_active      = 'Y'
+            AND  active.start_dt       = CURRENT_DATE
     );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
@@ -1770,10 +1749,12 @@ BEGIN
             src.source_entity
         FROM bl_cl.fn_get_ce_products_scd() src
         LEFT JOIN bl_3nf.ce_product_subcategories sub
-               ON sub.product_subcategory_src_id = src.subcategory_src_id
+            ON sub.product_subcategory_src_id = src.subcategory_src_id
+            AND sub.source_system               = src.source_system
     ) AS src
     ON tgt.product_src_id = src.product_src_id
-       AND tgt.is_active   = 'Y'
+        AND tgt.source_system = src.source_system
+        AND tgt.is_active   = 'Y'
     WHEN NOT MATCHED THEN
         INSERT (
             product_id,
@@ -1901,7 +1882,7 @@ BEGIN
     AND TRIM(s.bill_id)      <> ''
     AND s.product_code IS NOT NULL
     AND TRIM(s.product_code) <> ''
-    ORDER BY TRIM(s.bill_id), TRIM(s.product_code), s.ta_insert_dt DESC;
+    ORDER BY TRIM(s.bill_id), TRIM(s.product_code), s.ta_insert_dt DESC, s.transaction_date DESC;
 END;
 $$;
 
@@ -2012,18 +1993,20 @@ BEGIN
             'SRC_RETAIL_SALES'
         FROM (SELECT 1) dummy
         -- ── Dimension lookups (all LEFT JOIN) ───────
-        LEFT JOIN bl_dm.dim_time_day d
+        LEFT JOIN bl_3nf.ce_dates d
                 ON d.date_src_id = TO_CHAR(v_rec.event_dt, 'YYYYMMDD')
         -- SCD2 customer lookup: join on NK + is_active = 'Y' (current version)
         LEFT JOIN bl_3nf.ce_customers_scd cust
                ON cust.customer_src_id = v_rec.customer_src_id
               AND cust.is_active        = 'Y'
+              AND cust.source_system = 'SA_RETAIL'
         LEFT JOIN bl_3nf.ce_employees emp
                ON emp.employee_src_id  = v_rec.employee_src_id
         -- SCD2 product lookup: join on NK + is_active = 'Y' (current version)
         LEFT JOIN bl_3nf.ce_products_scd prod
                ON prod.product_src_id  = v_rec.product_src_id
               AND prod.is_active        = 'Y'
+              AND prod.source_system = 'SA_RETAIL'
         LEFT JOIN bl_3nf.ce_stores st
                ON st.store_src_id      = v_rec.store_src_id
         LEFT JOIN bl_3nf.ce_payment_types pt
@@ -2033,8 +2016,8 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_sales tgt
             WHERE  tgt.sale_src_id    = v_rec.sale_src_id
-              AND  tgt.source_system  = 'SA_RETAIL'
-              AND  tgt.product_id     = COALESCE(prod.product_id, -1)
+                AND  tgt.source_system  = 'SA_RETAIL'
+                AND  tgt.product_id     = COALESCE(prod.product_id, -1)
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -2104,12 +2087,13 @@ BEGIN
             'SRC_ECOM_SALES'
         FROM (SELECT 1) dummy
         -- ── Dimension lookups (all LEFT JOIN) ────────────────────────
-        LEFT JOIN bl_dm.dim_time_day d
+        LEFT JOIN bl_3nf.ce_dates d
                 ON d.date_src_id = TO_CHAR(v_rec.event_dt, 'YYYYMMDD')
         -- SCD2 customer lookup
         LEFT JOIN bl_3nf.ce_customers_scd cust
                ON cust.customer_src_id = v_rec.customer_src_id
               AND cust.is_active        = 'Y'
+              AND cust.source_system = 'SA_ECOM'
         -- Employee lookup
         LEFT JOIN bl_3nf.ce_employees emp
                ON emp.employee_src_id  = v_rec.employee_src_id
@@ -2117,6 +2101,7 @@ BEGIN
         LEFT JOIN bl_3nf.ce_products_scd prod
                ON prod.product_src_id  = v_rec.product_src_id
               AND prod.is_active        = 'Y'
+              AND prod.source_system = 'SA_ECOM'
         -- Store lookup: always resolves to the single ECOMMERCE row
         LEFT JOIN bl_3nf.ce_stores st
                ON st.store_src_id      = 'ECOMMERCE'
@@ -2128,8 +2113,8 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_sales tgt
             WHERE  tgt.sale_src_id    = v_rec.sale_src_id
-              AND  tgt.source_system  = 'SA_ECOM'
-              AND  tgt.product_id     = COALESCE(prod.product_id, -1)
+                AND  tgt.source_system  = 'SA_ECOM'
+                AND  tgt.product_id     = COALESCE(prod.product_id, -1)
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
