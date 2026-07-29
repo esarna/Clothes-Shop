@@ -24,10 +24,10 @@ CREATE TABLE IF NOT EXISTS BL_DM.DIM_TIME_DAY (
     IS_WEEKEND        INTEGER       NOT NULL,   -- 1=weekend, 0=weekday
     DAY_OF_MONTH_NUM  INTEGER       NOT NULL,
     WEEK_NUM          INTEGER       NOT NULL,   -- ISO week number
-    MONTH_NUM         CHAR(2)       NOT NULL,   -- '01'-'12'
+    MONTH_NUM         VARCHAR(3)    NOT NULL,   -- '01'-'12'
     MONTH_DESC        VARCHAR(25)   NOT NULL,
-    QUARTER_NUM       CHAR(1)       NOT NULL,   -- '1'-'4'
-    YEAR_NUM          CHAR(4)       NOT NULL,
+    QUARTER_NUM       VARCHAR(3)    NOT NULL,   -- '1'-'4'
+    YEAR_NUM          VARCHAR(4)    NOT NULL,
     TA_INSERT_DT      DATE          NOT NULL,   -- TA_ prefix: technical column
     SOURCE_SYSTEM     VARCHAR(50)   NOT NULL,
     SOURCE_ENTITY     VARCHAR(50)   NOT NULL,
@@ -65,13 +65,13 @@ INSERT INTO BL_DM.DIM_TIME_DAY (
     TA_INSERT_DT,   SOURCE_SYSTEM,   SOURCE_ENTITY
 ) VALUES (
     -1,
-    'N/A',          '1900-01-01',
-    -1,             'N/A',            -1,
+    'n/a',          '1900-01-01',
+    -1,             'n/a',            -1,
     -1,             -1,
-    'NA',           'N/A',            -- CHAR(2): 'NA' not 'N/A'
-    'N',            'N/A',
+    'n/a',           'n/a',
+    'n/a',            'n/a',
     CURRENT_DATE,  'MANUAL',         'MANUAL'
-);
+)ON CONFLICT (date_surr_id) DO NOTHING;
 
 -- Populate full date range: 2010-01-01 - 2040-12-31
 INSERT INTO BL_DM.DIM_TIME_DAY (
