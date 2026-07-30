@@ -1363,7 +1363,7 @@ BEGIN
             ORDER BY TRIM(r.customer_id), r.ta_insert_dt DESC, r.transaction_date DESC
         ) retail
     
-        UNION
+        UNION ALL
     
         SELECT * FROM (
             SELECT DISTINCT ON (TRIM(e.user_id))
@@ -1416,7 +1416,7 @@ BEGIN
             ORDER BY TRIM(r.customer_id), r.ta_insert_dt DESC, r.transaction_date DESC
         ) retail
 
-        UNION
+        UNION ALL
 
         SELECT * FROM (
             SELECT DISTINCT ON (TRIM(e.user_id))
@@ -1432,11 +1432,12 @@ BEGIN
                 'SA_ECOM'                                               AS source_system
             FROM sa_ecom.src_ecom_sales e
             WHERE e.user_id IS NOT NULL AND TRIM(e.user_id) <> ''
-            ORDER BY TRIM(e.user_id), e.ta_insert_dt DESC, e.user_id, e.transaction_date DESC
+            ORDER BY TRIM(e.user_id), e.ta_insert_dt DESC, e.transaction_date DESC
         ) ecom
     ) src
     LEFT JOIN bl_3nf.ce_locations loc
            ON loc.location_src_id = src.location_src_id
+           AND loc.source_system = src.source_system
     WHERE tgt.customer_src_id  = src.customer_src_id
         AND tgt.source_system = src.source_system
         AND tgt.is_active        = 'Y'
@@ -1487,6 +1488,7 @@ BEGIN
     FROM bl_cl.fn_get_ce_customers_scd() src
     LEFT JOIN bl_3nf.ce_locations loc
             ON loc.location_src_id = src.location_src_id
+            AND loc.source_system = src.source_system
     -- Only insert new version for customers whose previous row was just closed today
     WHERE EXISTS (
         SELECT 1
@@ -1507,7 +1509,7 @@ BEGIN
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
 
-    -- ── STEP C: Insert brand-new customers (NK not in target yet) ───
+    -- ── STEP C: Insert brand-new customer versions (combination of attrs not yet in target) ─
     INSERT INTO bl_3nf.ce_customers_scd (
         customer_id,
         customer_src_id,
@@ -1534,23 +1536,76 @@ BEGIN
         COALESCE(loc.location_id, -1),
         CURRENT_DATE,
         DATE '9999-12-31',
-        'Y',
+        'N',           -- starts as inactive; STEP D will set the correct active version
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP,
         src.source_system,
         src.source_entity
     FROM bl_cl.fn_get_ce_customers_scd() src
     LEFT JOIN bl_3nf.ce_locations loc
-           ON loc.location_src_id = src.location_src_id
-    -- Only brand-new customers: NK has never appeared in target
+        ON loc.location_src_id = src.location_src_id
+        AND loc.source_system = src.source_system
+    -- Insert only if this exact combination of attributes does not yet exist
     WHERE NOT EXISTS (
         SELECT 1
         FROM   bl_3nf.ce_customers_scd tgt
-        WHERE  tgt.customer_src_id = src.customer_src_id
-            AND tgt.source_system = src.source_system
+        WHERE  tgt.customer_src_id       = src.customer_src_id
+        AND  tgt.source_system         = src.source_system
+        AND  tgt.customer_name         = src.customer_name
+        AND  tgt.customer_gender       = src.customer_gender
+        AND  tgt.customer_email        = src.customer_email
+        AND  tgt.customer_phone_number = src.customer_phone_number
+        AND  tgt.customer_location_id  = COALESCE(loc.location_id, -1)
     );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
+
+    -- ── STEP D: Activate correct version, deactivate all others ────
+    UPDATE bl_3nf.ce_customers_scd tgt
+    SET
+        is_active    = 'Y',
+        end_dt       = DATE '9999-12-31',
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_ce_customers_scd() src
+    LEFT JOIN bl_3nf.ce_locations loc
+        ON loc.location_src_id = src.location_src_id
+        AND loc.source_system = src.source_system
+    WHERE tgt.customer_src_id       = src.customer_src_id
+    AND tgt.source_system          = src.source_system
+    AND tgt.customer_id            > 0
+    AND tgt.customer_name          = src.customer_name
+    AND tgt.customer_gender        = src.customer_gender
+    AND tgt.customer_email         = src.customer_email
+    AND tgt.customer_phone_number  = src.customer_phone_number
+    AND tgt.customer_location_id   = COALESCE(loc.location_id, -1)
+    AND tgt.is_active               = 'N';   -- only activate if currently inactive
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
+
+    UPDATE bl_3nf.ce_customers_scd tgt
+    SET
+        is_active    = 'N',
+        end_dt       = CASE WHEN tgt.end_dt = DATE '9999-12-31'
+                            THEN CURRENT_DATE - 1
+                            ELSE tgt.end_dt END,
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_ce_customers_scd() src
+    LEFT JOIN bl_3nf.ce_locations loc
+        ON loc.location_src_id = src.location_src_id
+        AND loc.source_system = src.source_system
+    WHERE tgt.customer_src_id      = src.customer_src_id
+    AND tgt.source_system         = src.source_system
+    AND tgt.customer_id           > 0
+    AND tgt.is_active              = 'Y'   -- only deactivate currently active
+    AND (
+            tgt.customer_name         <> src.customer_name
+        OR tgt.customer_gender       <> src.customer_gender
+        OR tgt.customer_email        <> src.customer_email
+        OR tgt.customer_phone_number <> src.customer_phone_number
+        OR tgt.customer_location_id  <> COALESCE(loc.location_id, -1)
+    );
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_ce_customers_scd',
@@ -1625,7 +1680,7 @@ BEGIN
         ORDER BY TRIM(r.product_code), r.ta_insert_dt DESC, r.transaction_date DESC
     ) retail
 
-    UNION
+    UNION ALL
 
     -- SA_ECOM: tracked attributes not captured in this source
     SELECT * FROM (
@@ -1735,61 +1790,94 @@ BEGIN
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
 
-    -- ── STEP C: Insert brand-new products (NK not in target yet) ────
-    MERGE INTO bl_3nf.ce_products_scd AS tgt
-    USING (
-        SELECT
-            src.product_src_id,
-            COALESCE(sub.product_subcategory_id, -1) AS product_subcategory_id,
-            src.product_description,
-            src.product_colour,
-            src.product_size,
-            src.product_min_amount,
-            src.source_system,
-            src.source_entity
-        FROM bl_cl.fn_get_ce_products_scd() src
-        LEFT JOIN bl_3nf.ce_product_subcategories sub
-            ON sub.product_subcategory_src_id = src.subcategory_src_id
-            AND sub.source_system               = src.source_system
-    ) AS src
-    ON tgt.product_src_id = src.product_src_id
-        AND tgt.source_system = src.source_system
-        AND tgt.is_active   = 'Y'
-    WHEN NOT MATCHED THEN
-        INSERT (
-            product_id,
-            product_src_id,
-            product_subcategory_id,
-            product_description,
-            product_colour,
-            product_size,
-            product_min_amount,
-            start_dt,
-            end_dt,
-            is_active,
-            ta_insert_dt,
-            ta_update_dt,
-            source_system,
-            source_entity
-        )
-        VALUES (
-            nextval('bl_3nf.seq_ce_products_scd'),
-            src.product_src_id,
-            src.product_subcategory_id,
-            src.product_description,
-            src.product_colour,
-            src.product_size,
-            src.product_min_amount,
-            CURRENT_DATE,
-            DATE '9999-12-31',
-            'Y',
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP,
-            src.source_system,
-            src.source_entity
-        );
+    -- ── STEP C: Insert brand-new product versions (combination of attrs not yet in target) ─
+    INSERT INTO bl_3nf.ce_products_scd (
+        product_id,
+        product_src_id,
+        product_subcategory_id,
+        product_description,
+        product_colour,
+        product_size,
+        product_min_amount,
+        start_dt,
+        end_dt,
+        is_active,
+        ta_insert_dt,
+        ta_update_dt,
+        source_system,
+        source_entity
+    )
+    SELECT
+        nextval('bl_3nf.seq_ce_products_scd'),
+        src.product_src_id,
+        COALESCE(sub.product_subcategory_id, -1),
+        src.product_description,
+        src.product_colour,
+        src.product_size,
+        src.product_min_amount,
+        CURRENT_DATE,
+        DATE '9999-12-31',
+        'N',           -- starts as inactive; STEP D will set the correct active version
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        src.source_system,
+        src.source_entity
+    FROM bl_cl.fn_get_ce_products_scd() src
+    LEFT JOIN bl_3nf.ce_product_subcategories sub
+        ON sub.product_subcategory_src_id = src.subcategory_src_id
+    AND sub.source_system               = src.source_system
+    -- Insert only if this exact combination of attributes does not yet exist
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM   bl_3nf.ce_products_scd tgt
+        WHERE  tgt.product_src_id        = src.product_src_id
+        AND  tgt.source_system         = src.source_system
+        AND  tgt.product_description   = src.product_description
+        AND  tgt.product_colour        = src.product_colour
+        AND  tgt.product_size          = src.product_size
+        AND  tgt.product_min_amount    IS NOT DISTINCT FROM src.product_min_amount
+    );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
+
+    -- Only touches rows where is_active or end_dt actually needs to change
+    UPDATE bl_3nf.ce_products_scd tgt
+    SET
+        is_active    = 'Y',
+        end_dt       = DATE '9999-12-31',
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_ce_products_scd() src
+    WHERE tgt.product_src_id      = src.product_src_id
+    AND tgt.source_system        = src.source_system
+    AND tgt.product_id           > 0
+    AND tgt.product_description  = src.product_description
+    AND tgt.product_colour       = src.product_colour
+    AND tgt.product_size         = src.product_size
+    AND tgt.product_min_amount   IS NOT DISTINCT FROM src.product_min_amount
+    AND tgt.is_active             = 'N';   -- only activate if currently inactive
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
+
+    UPDATE bl_3nf.ce_products_scd tgt
+    SET
+        is_active    = 'N',
+        end_dt       = CASE WHEN tgt.end_dt = DATE '9999-12-31'
+                            THEN CURRENT_DATE - 1
+                            ELSE tgt.end_dt END,
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_ce_products_scd() src
+    WHERE tgt.product_src_id = src.product_src_id
+    AND tgt.source_system   = src.source_system
+    AND tgt.product_id      > 0
+    AND tgt.is_active        = 'Y'   -- only deactivate currently active
+    AND (
+            tgt.product_description <> src.product_description
+        OR tgt.product_colour      <> src.product_colour
+        OR tgt.product_size        <> src.product_size
+        OR tgt.product_min_amount  IS DISTINCT FROM src.product_min_amount
+    );
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_ce_products_scd',
@@ -1995,29 +2083,89 @@ BEGIN
         -- ── Dimension lookups (all LEFT JOIN) ───────
         LEFT JOIN bl_3nf.ce_dates d
                 ON d.date_src_id = TO_CHAR(v_rec.event_dt, 'YYYYMMDD')
-        -- SCD2 customer lookup: join on NK + is_active = 'Y' (current version)
+        -- SCD2 customer lookup: match by source attributes (not is_active)
         LEFT JOIN bl_3nf.ce_customers_scd cust
-               ON cust.customer_src_id = v_rec.customer_src_id
-              AND cust.is_active        = 'Y'
-              AND cust.source_system = 'SA_RETAIL'
+            ON cust.customer_src_id       = v_rec.customer_src_id
+            AND cust.source_system          = 'SA_RETAIL'
+            AND cust.customer_name          = COALESCE((
+                    SELECT COALESCE(TRIM(r.customer_name), 'n/a')
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id) = v_rec.sale_src_id
+                    AND  r.customer_id   IS NOT NULL
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_gender        = COALESCE((
+                    SELECT COALESCE(UPPER(LEFT(TRIM(r.customer_gender),1)), 'n/a')
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id) = v_rec.sale_src_id
+                    AND  r.customer_id   IS NOT NULL
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_email         = 'n/a'
+            AND cust.customer_phone_number  = COALESCE((
+                    SELECT COALESCE(TRIM(r.customer_phone_number), 'n/a')
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id) = v_rec.sale_src_id
+                    AND  r.customer_id   IS NOT NULL
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_location_id   = COALESCE((
+                    SELECT loc.location_id
+                    FROM   sa_retail.src_retail_sales r
+                    LEFT JOIN bl_3nf.ce_locations loc
+                        ON loc.location_src_id = COALESCE(TRIM(r.customer_address),'n/a')
+                            || '_' || COALESCE(TRIM(r.customer_postal_code),'n/a')
+                    WHERE  TRIM(r.bill_id) = v_rec.sale_src_id
+                    AND  r.customer_id   IS NOT NULL
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), -1)
         LEFT JOIN bl_3nf.ce_employees emp
-               ON emp.employee_src_id  = v_rec.employee_src_id
-        -- SCD2 product lookup: join on NK + is_active = 'Y' (current version)
+            ON emp.employee_src_id  = v_rec.employee_src_id
+        -- SCD2 product lookup: match by source attributes (not is_active)
         LEFT JOIN bl_3nf.ce_products_scd prod
-               ON prod.product_src_id  = v_rec.product_src_id
-              AND prod.is_active        = 'Y'
-              AND prod.source_system = 'SA_RETAIL'
+            ON prod.product_src_id    = v_rec.product_src_id
+            AND prod.source_system      = 'SA_RETAIL'
+            AND prod.product_description = COALESCE((
+                    SELECT CASE WHEN TRIM(r.description) IN ('NOT-CAPTURED','') OR r.description IS NULL
+                                THEN 'n/a' ELSE TRIM(r.description) END
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id)      = v_rec.sale_src_id
+                    AND  TRIM(r.product_code) = v_rec.product_src_id
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND prod.product_colour      = COALESCE((
+                    SELECT CASE WHEN TRIM(r.colour) IN ('NOT-CAPTURED','') OR r.colour IS NULL
+                                THEN 'n/a' ELSE TRIM(r.colour) END
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id)      = v_rec.sale_src_id
+                    AND  TRIM(r.product_code) = v_rec.product_src_id
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND prod.product_size        = COALESCE((
+                    SELECT CASE WHEN TRIM(r.size) IN ('NOT-CAPTURED','') OR r.size IS NULL
+                                THEN 'n/a' ELSE TRIM(r.size) END
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id)      = v_rec.sale_src_id
+                    AND  TRIM(r.product_code) = v_rec.product_src_id
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND prod.product_min_amount  IS NOT DISTINCT FROM (
+                    SELECT r.min_amount
+                    FROM   sa_retail.src_retail_sales r
+                    WHERE  TRIM(r.bill_id)      = v_rec.sale_src_id
+                    AND  TRIM(r.product_code) = v_rec.product_src_id
+                    ORDER BY r.ta_insert_dt DESC, r.transaction_date DESC
+                    LIMIT  1)
         LEFT JOIN bl_3nf.ce_stores st
-               ON st.store_src_id      = v_rec.store_src_id
+            ON st.store_src_id      = v_rec.store_src_id
         LEFT JOIN bl_3nf.ce_payment_types pt
-               ON pt.payment_type_src_id = v_rec.payment_src_id
-        -- Dedup guard: skip rows already loaded (by NK grain)
+            ON pt.payment_type_src_id = v_rec.payment_src_id
+        -- Dedup guard: sale_src_id is unique per source — never re-insert same transaction
         WHERE NOT EXISTS (
             SELECT 1
             FROM   bl_3nf.ce_sales tgt
-            WHERE  tgt.sale_src_id    = v_rec.sale_src_id
-                AND  tgt.source_system  = 'SA_RETAIL'
-                AND  tgt.product_id     = COALESCE(prod.product_id, -1)
+            WHERE  tgt.sale_src_id   = v_rec.sale_src_id
+            AND  tgt.source_system = 'SA_RETAIL'
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
@@ -2089,32 +2237,71 @@ BEGIN
         -- ── Dimension lookups (all LEFT JOIN) ────────────────────────
         LEFT JOIN bl_3nf.ce_dates d
                 ON d.date_src_id = TO_CHAR(v_rec.event_dt, 'YYYYMMDD')
-        -- SCD2 customer lookup
+        -- SCD2 customer lookup: match by source attributes (not is_active)
         LEFT JOIN bl_3nf.ce_customers_scd cust
-               ON cust.customer_src_id = v_rec.customer_src_id
-              AND cust.is_active        = 'Y'
-              AND cust.source_system = 'SA_ECOM'
+            ON cust.customer_src_id       = v_rec.customer_src_id
+            AND cust.source_system          = 'SA_ECOM'
+            AND cust.customer_name          = COALESCE((
+                    SELECT COALESCE(TRIM(e.user_name), 'n/a')
+                    FROM   sa_ecom.src_ecom_sales e
+                    WHERE  TRIM(e.payment_id) = v_rec.sale_src_id
+                    AND  e.user_id          IS NOT NULL
+                    ORDER BY e.ta_insert_dt DESC, e.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_gender        = COALESCE((
+                    SELECT COALESCE(UPPER(LEFT(TRIM(e.user_gender),1)), 'n/a')
+                    FROM   sa_ecom.src_ecom_sales e
+                    WHERE  TRIM(e.payment_id) = v_rec.sale_src_id
+                    AND  e.user_id          IS NOT NULL
+                    ORDER BY e.ta_insert_dt DESC, e.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_email         = COALESCE((
+                    SELECT COALESCE(TRIM(e.user_email), 'n/a')
+                    FROM   sa_ecom.src_ecom_sales e
+                    WHERE  TRIM(e.payment_id) = v_rec.sale_src_id
+                    AND  e.user_id          IS NOT NULL
+                    ORDER BY e.ta_insert_dt DESC, e.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_phone_number  = COALESCE((
+                    SELECT COALESCE(TRIM(e.user_phone_number), 'n/a')
+                    FROM   sa_ecom.src_ecom_sales e
+                    WHERE  TRIM(e.payment_id) = v_rec.sale_src_id
+                    AND  e.user_id          IS NOT NULL
+                    ORDER BY e.ta_insert_dt DESC, e.transaction_date DESC
+                    LIMIT  1), 'n/a')
+            AND cust.customer_location_id   = COALESCE((
+                    SELECT loc.location_id
+                    FROM   sa_ecom.src_ecom_sales e
+                    LEFT JOIN bl_3nf.ce_locations loc
+                        ON loc.location_src_id = COALESCE(TRIM(e.user_address),'n/a')
+                            || '_' || COALESCE(TRIM(e.user_postal_code),'n/a')
+                    WHERE  TRIM(e.payment_id) = v_rec.sale_src_id
+                    AND  e.user_id          IS NOT NULL
+                    ORDER BY e.ta_insert_dt DESC, e.transaction_date DESC
+                    LIMIT  1), -1)
         -- Employee lookup
         LEFT JOIN bl_3nf.ce_employees emp
-               ON emp.employee_src_id  = v_rec.employee_src_id
-        -- SCD2 product lookup
+            ON emp.employee_src_id  = v_rec.employee_src_id
+        -- SCD2 product lookup: ecom products always have n/a attrs and NULL min_amount
         LEFT JOIN bl_3nf.ce_products_scd prod
-               ON prod.product_src_id  = v_rec.product_src_id
-              AND prod.is_active        = 'Y'
-              AND prod.source_system = 'SA_ECOM'
+            ON prod.product_src_id    = v_rec.product_src_id
+            AND prod.source_system      = 'SA_ECOM'
+            AND prod.product_description = 'n/a'
+            AND prod.product_colour      = 'n/a'
+            AND prod.product_size        = 'n/a'
+            AND prod.product_min_amount  IS NULL
         -- Store lookup: always resolves to the single ECOMMERCE row
         LEFT JOIN bl_3nf.ce_stores st
-               ON st.store_src_id      = 'ECOMMERCE'
+            ON st.store_src_id      = 'ECOMMERCE'
         -- Payment type lookup
         LEFT JOIN bl_3nf.ce_payment_types pt
-               ON pt.payment_type_src_id = v_rec.payment_src_id
-        -- Dedup guard
+            ON pt.payment_type_src_id = v_rec.payment_src_id
+        -- Dedup guard: sale_src_id is unique per source — never re-insert same transaction
         WHERE NOT EXISTS (
             SELECT 1
             FROM   bl_3nf.ce_sales tgt
-            WHERE  tgt.sale_src_id    = v_rec.sale_src_id
-                AND  tgt.source_system  = 'SA_ECOM'
-                AND  tgt.product_id     = COALESCE(prod.product_id, -1)
+            WHERE  tgt.sale_src_id   = v_rec.sale_src_id
+            AND  tgt.source_system = 'SA_ECOM'
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
