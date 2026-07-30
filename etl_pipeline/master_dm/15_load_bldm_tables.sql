@@ -508,7 +508,7 @@ BEGIN
         v_rows_inserted := v_rows_inserted + v_delta;
     END LOOP;
 
-    -- ── STEP C: Brand-new customers ──────────────────────────────────
+-- ── STEP C: Brand-new customers — INSERT as is_active='N' ──────────
     FOR v_rec IN (SELECT * FROM bl_cl.fn_get_dim_customers_scd())
     LOOP
         INSERT INTO bl_dm.dim_customers_scd (
@@ -524,16 +524,74 @@ BEGIN
             v_rec.customer_gender, v_rec.customer_email, v_rec.customer_phone_number,
             v_rec.customer_address, v_rec.customer_city,
             v_rec.customer_state, v_rec.customer_postal_code,
-            CURRENT_DATE, DATE '9999-12-31', 'Y',
+            CURRENT_DATE, DATE '9999-12-31', 'N',
             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
             v_rec.source_system, v_rec.source_entity
         WHERE NOT EXISTS (
             SELECT 1 FROM bl_dm.dim_customers_scd tgt
             WHERE tgt.customer_src_id = v_rec.customer_src_id
+            AND tgt.source_system   = v_rec.source_system
+            AND tgt.customer_name          = v_rec.customer_name
+            AND tgt.customer_gender        = v_rec.customer_gender
+            AND tgt.customer_email         = v_rec.customer_email
+            AND tgt.customer_phone_number  = v_rec.customer_phone_number
+            AND tgt.customer_address       = v_rec.customer_address
+            AND tgt.customer_city          = v_rec.customer_city
+            AND tgt.customer_state         = v_rec.customer_state
+            AND tgt.customer_postal_code   = v_rec.customer_postal_code
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
     END LOOP;
+
+    -- ── STEP D-activate: Set is_active='Y' for version matching BL_3NF active ─
+    -- The active version in BL_DM mirrors is_active='Y' in BL_3NF source
+    UPDATE bl_dm.dim_customers_scd tgt
+    SET
+        is_active    = 'Y',
+        end_dt       = DATE '9999-12-31',
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_dim_customers_scd() src
+    WHERE tgt.customer_src_id       = src.customer_src_id
+    AND tgt.source_system          = src.source_system
+    AND tgt.customer_surr_id       > 0
+    AND tgt.customer_name          = src.customer_name
+    AND tgt.customer_gender        = src.customer_gender
+    AND tgt.customer_email         = src.customer_email
+    AND tgt.customer_phone_number  = src.customer_phone_number
+    AND tgt.customer_address       = src.customer_address
+    AND tgt.customer_city          = src.customer_city
+    AND tgt.customer_state         = src.customer_state
+    AND tgt.customer_postal_code   = src.customer_postal_code
+    AND tgt.is_active               = 'N';   -- only activate if currently inactive
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
+
+    -- ── STEP D-deactivate: Set is_active='N' for versions not matching current ─
+    UPDATE bl_dm.dim_customers_scd tgt
+    SET
+        is_active    = 'N',
+        end_dt       = CASE WHEN tgt.end_dt = DATE '9999-12-31'
+                            THEN CURRENT_DATE - 1
+                            ELSE tgt.end_dt END,
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_dim_customers_scd() src
+    WHERE tgt.customer_src_id      = src.customer_src_id
+    AND tgt.source_system         = src.source_system
+    AND tgt.customer_surr_id      > 0
+    AND tgt.is_active              = 'Y'
+    AND (
+            tgt.customer_name         <> src.customer_name
+        OR tgt.customer_gender       <> src.customer_gender
+        OR tgt.customer_email        <> src.customer_email
+        OR tgt.customer_phone_number <> src.customer_phone_number
+        OR tgt.customer_address      <> src.customer_address
+        OR tgt.customer_city         <> src.customer_city
+        OR tgt.customer_state        <> src.customer_state
+        OR tgt.customer_postal_code  <> src.customer_postal_code
+    );
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_dim_customers_scd',
@@ -693,36 +751,80 @@ BEGIN
         v_rows_inserted := v_rows_inserted + v_delta;
     END LOOP;
 
-    -- ── STEP C: Brand-new products — MERGE (upsert) ──────────────────
-    MERGE INTO bl_dm.dim_products_scd AS tgt
-    USING (
-        SELECT * FROM bl_cl.fn_get_dim_products_scd()
-    ) AS src
-    ON  tgt.product_src_id = src.product_src_id
-    AND tgt.is_active       = 'Y'
-    WHEN NOT MATCHED THEN
-        INSERT (
+    -- ── STEP C: Brand-new products — INSERT as is_active='N' ─────────────
+    FOR v_rec IN (SELECT * FROM bl_cl.fn_get_dim_products_scd())
+    LOOP
+        INSERT INTO bl_dm.dim_products_scd (
             product_surr_id, product_src_id, product_description,
             product_colour, product_size, product_min_amount,
             product_subcategory_id, product_subcategory_name,
-            product_category_id, product_category_name,
+            product_category_id,    product_category_name,
             product_top_category_id, product_top_category_name,
             start_dt, end_dt, is_active,
             ta_insert_dt, ta_update_dt, source_system, source_entity
         )
-        VALUES (
+        SELECT
             nextval('bl_dm.seq_dim_products_scd'),
-            src.product_src_id, src.product_description,
-            src.product_colour, src.product_size, src.product_min_amount,
-            src.product_subcategory_id, src.product_subcategory_name,
-            src.product_category_id,    src.product_category_name,
-            src.product_top_category_id, src.product_top_category_name,
-            CURRENT_DATE, DATE '9999-12-31', 'Y',
+            v_rec.product_src_id, v_rec.product_description,
+            v_rec.product_colour, v_rec.product_size, v_rec.product_min_amount,
+            v_rec.product_subcategory_id, v_rec.product_subcategory_name,
+            v_rec.product_category_id,    v_rec.product_category_name,
+            v_rec.product_top_category_id, v_rec.product_top_category_name,
+            CURRENT_DATE, DATE '9999-12-31', 'N',
             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-            src.source_system, src.source_entity
+            v_rec.source_system, v_rec.source_entity
+        WHERE NOT EXISTS (
+            SELECT 1 FROM bl_dm.dim_products_scd tgt
+            WHERE tgt.product_src_id        = v_rec.product_src_id
+            AND tgt.source_system          = v_rec.source_system
+            AND tgt.product_description    = v_rec.product_description
+            AND tgt.product_colour         = v_rec.product_colour
+            AND tgt.product_size           = v_rec.product_size
+            AND tgt.product_min_amount     IS NOT DISTINCT FROM v_rec.product_min_amount
         );
+        GET DIAGNOSTICS v_delta = ROW_COUNT;
+        v_rows_inserted := v_rows_inserted + v_delta;
+    END LOOP;
+
+    -- ── STEP D-activate: Set is_active='Y' for version matching BL_3NF active ─
+    UPDATE bl_dm.dim_products_scd tgt
+    SET
+        is_active    = 'Y',
+        end_dt       = DATE '9999-12-31',
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_dim_products_scd() src
+    WHERE tgt.product_src_id       = src.product_src_id
+    AND tgt.source_system         = src.source_system
+    AND tgt.product_surr_id       > 0
+    AND tgt.product_description   = src.product_description
+    AND tgt.product_colour        = src.product_colour
+    AND tgt.product_size          = src.product_size
+    AND tgt.product_min_amount    IS NOT DISTINCT FROM src.product_min_amount
+    AND tgt.is_active              = 'N';   -- only activate if currently inactive
     GET DIAGNOSTICS v_delta = ROW_COUNT;
-    v_rows_inserted := v_rows_inserted + v_delta;
+    v_rows_updated := v_rows_updated + v_delta;
+
+    -- ── STEP D-deactivate: Set is_active='N' for versions not matching current ─
+    UPDATE bl_dm.dim_products_scd tgt
+    SET
+        is_active    = 'N',
+        end_dt       = CASE WHEN tgt.end_dt = DATE '9999-12-31'
+                            THEN CURRENT_DATE - 1
+                            ELSE tgt.end_dt END,
+        ta_update_dt = CURRENT_TIMESTAMP
+    FROM bl_cl.fn_get_dim_products_scd() src
+    WHERE tgt.product_src_id       = src.product_src_id
+    AND tgt.source_system         = src.source_system
+    AND tgt.product_surr_id       > 0
+    AND tgt.is_active              = 'Y'
+    AND (
+            tgt.product_description    <> src.product_description
+        OR tgt.product_colour         <> src.product_colour
+        OR tgt.product_size           <> src.product_size
+        OR tgt.product_min_amount     IS DISTINCT FROM src.product_min_amount
+    );
+    GET DIAGNOSTICS v_delta = ROW_COUNT;
+    v_rows_updated := v_rows_updated + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_dim_products_scd',
@@ -798,8 +900,12 @@ BEGIN
     SELECT
         s.event_dt::DATE,
         COALESCE(dt.date_surr_id,            -1)::BIGINT,
+        -- CUSTOMER: join via ce_customers_scd (any version, not is_active filter)
+        -- then match to dim_customers_scd by all tracked attributes
         COALESCE(dim_cust.customer_surr_id,  -1)::BIGINT,
         COALESCE(dim_emp.employee_surr_id,   -1)::BIGINT,
+        -- PRODUCT: join via ce_products_scd (any version, not is_active filter)
+        -- then match to dim_products_scd by all tracked attributes
         COALESCE(dim_prod.product_surr_id,   -1)::BIGINT,
         COALESCE(dim_st.store_surr_id,       -1)::BIGINT,
         COALESCE(dim_pt.payment_type_surr_id,-1)::BIGINT,
@@ -814,14 +920,17 @@ BEGIN
         END::DECIMAL(12,2),
         CASE WHEN s.source_system = 'SA_RETAIL' THEN s.cost ELSE NULL END::DECIMAL(12,2),
         s.quantity::INTEGER,
-        CASE WHEN s.cost IS NOT NULL AND s.quantity IS NOT NULL AND s.source_system='SA_RETAIL'
+        CASE WHEN s.cost IS NOT NULL AND s.quantity IS NOT NULL
+                  AND s.source_system = 'SA_RETAIL'
              THEN (s.cost * s.quantity) ELSE NULL END::DECIMAL(12,2),
         CASE
-            WHEN s.sales_amount IS NOT NULL AND s.cost IS NOT NULL AND s.quantity IS NOT NULL
+            WHEN s.sales_amount IS NOT NULL AND s.cost IS NOT NULL
+                 AND s.quantity IS NOT NULL
             THEN
                 CASE s.source_system
-                    WHEN 'SA_RETAIL' THEN (s.sales_amount - COALESCE(s.discount,0)) - (s.cost * s.quantity)
-                    WHEN 'SA_ECOM'   THEN s.sales_amount
+                    WHEN 'SA_RETAIL' THEN
+                        (s.sales_amount - COALESCE(s.discount,0)) - (s.cost * s.quantity)
+                    WHEN 'SA_ECOM' THEN s.sales_amount
                     ELSE NULL
                 END
             ELSE NULL
@@ -829,21 +938,72 @@ BEGIN
         s.source_system::VARCHAR,
         s.source_entity::VARCHAR
     FROM bl_3nf.ce_sales s
-    LEFT JOIN bl_dm.dim_time_day           dt       ON dt.date_src_id        = TO_CHAR(s.event_dt,'YYYYMMDD')
-    LEFT JOIN bl_3nf.ce_customers_scd      ce_cust  ON ce_cust.customer_id   = s.customer_id  AND ce_cust.is_active='Y'
-    LEFT JOIN bl_dm.dim_customers_scd      dim_cust ON dim_cust.customer_src_id = ce_cust.customer_src_id AND dim_cust.is_active='Y'
-    LEFT JOIN bl_3nf.ce_employees          ce_emp   ON ce_emp.employee_id    = s.employee_id
-    LEFT JOIN bl_dm.dim_employees          dim_emp  ON dim_emp.employee_src_id = ce_emp.employee_src_id
-    LEFT JOIN bl_3nf.ce_products_scd       ce_prod  ON ce_prod.product_id    = s.product_id   AND ce_prod.is_active='Y'
-    LEFT JOIN bl_dm.dim_products_scd       dim_prod ON dim_prod.product_src_id = ce_prod.product_src_id AND dim_prod.is_active='Y'
-    LEFT JOIN bl_3nf.ce_stores             ce_st    ON ce_st.store_id        = s.store_id
-    LEFT JOIN bl_dm.dim_stores             dim_st   ON dim_st.store_src_id   = ce_st.store_src_id
-    LEFT JOIN bl_3nf.ce_payment_types      ce_pt    ON ce_pt.payment_type_id = s.payment_type_id
-    LEFT JOIN bl_dm.dim_payment_types      dim_pt   ON dim_pt.payment_type_src_id = ce_pt.payment_type_src_id
+    -- Date dimension
+    LEFT JOIN bl_dm.dim_time_day dt
+           ON dt.date_src_id = TO_CHAR(s.event_dt, 'YYYYMMDD')
+    -- Customer: get the exact SCD2 version stored in ce_sales (any is_active)
+    LEFT JOIN bl_3nf.ce_customers_scd ce_cust
+           ON ce_cust.customer_id = s.customer_id
+    -- Match to BL_DM by all tracked attributes (mirrors BL_3NF STEP D logic)
+    LEFT JOIN bl_dm.dim_customers_scd dim_cust
+           ON dim_cust.customer_src_id      = ce_cust.customer_src_id
+          AND dim_cust.source_system         = ce_cust.source_system
+          AND dim_cust.customer_name         = ce_cust.customer_name
+          AND dim_cust.customer_gender       = ce_cust.customer_gender
+          AND dim_cust.customer_email        = ce_cust.customer_email
+          AND dim_cust.customer_phone_number = ce_cust.customer_phone_number
+          AND dim_cust.customer_address      = COALESCE(
+                  (SELECT loc.location_address
+                   FROM bl_3nf.ce_locations loc
+                   WHERE loc.location_id = ce_cust.customer_location_id
+                   LIMIT 1), 'n/a')
+          AND dim_cust.customer_city         = COALESCE(
+                  (SELECT loc.location_city
+                   FROM bl_3nf.ce_locations loc
+                   WHERE loc.location_id = ce_cust.customer_location_id
+                   LIMIT 1), 'n/a')
+          AND dim_cust.customer_state        = COALESCE(
+                  (SELECT loc.location_state
+                   FROM bl_3nf.ce_locations loc
+                   WHERE loc.location_id = ce_cust.customer_location_id
+                   LIMIT 1), 'n/a')
+          AND dim_cust.customer_postal_code  = COALESCE(
+                  (SELECT loc.location_postal_code
+                   FROM bl_3nf.ce_locations loc
+                   WHERE loc.location_id = ce_cust.customer_location_id
+                   LIMIT 1), 'n/a')
+    -- Employee
+    LEFT JOIN bl_3nf.ce_employees ce_emp
+           ON ce_emp.employee_id = s.employee_id
+    LEFT JOIN bl_dm.dim_employees dim_emp
+           ON dim_emp.employee_src_id = ce_emp.employee_src_id
+          AND dim_emp.source_system   = ce_emp.source_system
+    -- Product: get the exact SCD2 version stored in ce_sales (any is_active)
+    LEFT JOIN bl_3nf.ce_products_scd ce_prod
+           ON ce_prod.product_id = s.product_id
+    -- Match to BL_DM by all tracked attributes
+    LEFT JOIN bl_dm.dim_products_scd dim_prod
+           ON dim_prod.product_src_id      = ce_prod.product_src_id
+          AND dim_prod.source_system        = ce_prod.source_system
+          AND dim_prod.product_description  = ce_prod.product_description
+          AND dim_prod.product_colour       = ce_prod.product_colour
+          AND dim_prod.product_size         = ce_prod.product_size
+          AND dim_prod.product_min_amount   IS NOT DISTINCT FROM ce_prod.product_min_amount
+    -- Store
+    LEFT JOIN bl_3nf.ce_stores ce_st
+           ON ce_st.store_id = s.store_id
+    LEFT JOIN bl_dm.dim_stores dim_st
+           ON dim_st.store_src_id = ce_st.store_src_id
+    -- Payment type
+    LEFT JOIN bl_3nf.ce_payment_types ce_pt
+           ON ce_pt.payment_type_id = s.payment_type_id
+    LEFT JOIN bl_dm.dim_payment_types dim_pt
+           ON dim_pt.payment_type_src_id = ce_pt.payment_type_src_id
     WHERE s.sale_id > 0
       AND NOT EXISTS (
           SELECT 1 FROM bl_dm.fct_sales_dd fct
-          WHERE fct.line_src_id   = s.sale_src_id || '_' || COALESCE(ce_prod.product_src_id,'n/a')
+          WHERE fct.line_src_id   = s.sale_src_id
+                                    || '_' || COALESCE(ce_prod.product_src_id, 'n/a')
             AND fct.source_system = s.source_system
       );
 END;
