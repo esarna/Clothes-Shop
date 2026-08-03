@@ -71,7 +71,7 @@ INSERT INTO BL_DM.DIM_TIME_DAY (
     'NA',           'N/A',            -- CHAR(2): 'NA' not 'N/A'
     'N',            'N/A',
     CURRENT_DATE,  'MANUAL',         'MANUAL'
-);
+)ON CONFLICT (date_surr_id) DO NOTHING;
 
 -- Populate full date range: 2010-01-01 - 2040-12-31
 INSERT INTO BL_DM.DIM_TIME_DAY (
