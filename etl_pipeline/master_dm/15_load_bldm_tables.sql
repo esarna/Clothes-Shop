@@ -508,7 +508,7 @@ BEGIN
         v_rows_inserted := v_rows_inserted + v_delta;
     END LOOP;
 
--- ── STEP C: Brand-new customers — INSERT as is_active='N' ──────────
+-- ── STEP C: Brand-new customers — INSERT as is_active='Y' ──────────
     FOR v_rec IN (SELECT * FROM bl_cl.fn_get_dim_customers_scd())
     LOOP
         INSERT INTO bl_dm.dim_customers_scd (
@@ -725,7 +725,7 @@ BEGIN
             src.source_system, src.source_entity
         );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
-    v_rows_updated := v_rows_updated + v_delta;
+    v_rows_inserted := v_rows_inserted + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_dim_products_scd',
@@ -773,8 +773,31 @@ $$;
 -- ============================================================
 -- LOAD 7 - FCT_SALES_DD  (Append-only incremental)
 -- ============================================================
+-- ============================================================
+-- LOAD 7 - FCT_SALES_DD
+--
+-- PARTITION STRATEGY (per polecenie + PDF §2.1-2.2 + slajdy 15-20):
+--   1. Determine target month from new CE_SALES rows.
+--   2. Create staging table: fct_sales_dd_staging_<YYYY_MM>
+--      (LIKE fct_sales_dd INCLUDING ALL).
+--   3. Load new rows into staging table (fast, no concurrency impact).
+--   4. ATTACH staging table as new partition of fct_sales_dd.
+--   5. Rolling window: DETACH + DROP partitions older than 3 months.
+--
+-- INCREMENTAL GUARD:
+--   The NOT EXISTS check on (line_src_id, source_system, event_dt)
+--   is performed against ALL existing partitions via the parent table.
+--   After ATTACH, the partition is visible immediately to all queries.
+--
+-- NOTE: fn_get_fct_sales_dd reads from bl_3nf.ce_sales and
+--       performs all dimension lookups. The dedup filter is applied
+--       inside the function against the parent fct_sales_dd table.
+-- ============================================================
 
-CREATE OR REPLACE FUNCTION bl_cl.fn_get_fct_sales_dd()
+CREATE OR REPLACE FUNCTION bl_cl.fn_get_fct_sales_dd(
+    p_month_start DATE DEFAULT NULL,
+    p_month_end   DATE DEFAULT NULL
+)
 RETURNS TABLE (
     event_dt             DATE,
     date_surr_id         BIGINT,
@@ -785,13 +808,13 @@ RETURNS TABLE (
     payment_type_surr_id BIGINT,
     payment_src_id       VARCHAR,
     line_src_id          VARCHAR,
-    fct_sales_amount     DECIMAL(12,2),
-    fct_discount         DECIMAL(12,2),
-    fct_net_amount       DECIMAL(12,2),
-    fct_unit_cost        DECIMAL(12,2),
+    fct_sales_amount     DECIMAL(18,8),
+    fct_discount         DECIMAL(18,8),
+    fct_net_amount       DECIMAL(18,8),
+    fct_unit_cost        DECIMAL(18,8),
     fct_quantity         INTEGER,
-    fct_total_cost       DECIMAL(12,2),
-    fct_gross_profit     DECIMAL(12,2),
+    fct_total_cost       DECIMAL(18,8),
+    fct_gross_profit     DECIMAL(18,8),
     source_system        VARCHAR,
     source_entity        VARCHAR
 )
@@ -801,32 +824,30 @@ BEGIN
     SELECT
         s.event_dt::DATE,
         COALESCE(dt.date_surr_id,            -1)::BIGINT,
-        -- CUSTOMER: join via ce_customers_scd (any version, not is_active filter)
-        -- then match to dim_customers_scd by all tracked attributes
         COALESCE(dim_cust.customer_surr_id,  -1)::BIGINT,
         COALESCE(dim_emp.employee_surr_id,   -1)::BIGINT,
-        -- PRODUCT: join via ce_products_scd (any version, not is_active filter)
-        -- then match to dim_products_scd by all tracked attributes
         COALESCE(dim_prod.product_surr_id,   -1)::BIGINT,
         COALESCE(dim_st.store_surr_id,       -1)::BIGINT,
         COALESCE(dim_pt.payment_type_surr_id,-1)::BIGINT,
         s.sale_src_id::VARCHAR,
         (s.sale_src_id || '_' || COALESCE(ce_prod.product_src_id, 'n/a'))::VARCHAR,
-        s.sales_amount::DECIMAL(12,2),
-        s.discount::DECIMAL(12,2),
+        s.sales_amount::DECIMAL(18,8),
+        s.discount::DECIMAL(18,8),
         CASE s.source_system
             WHEN 'SA_RETAIL' THEN (s.sales_amount - COALESCE(s.discount,0))
             WHEN 'SA_ECOM'   THEN s.sales_amount
             ELSE NULL
-        END::DECIMAL(12,2),
-        CASE WHEN s.source_system = 'SA_RETAIL' THEN s.cost ELSE NULL END::DECIMAL(12,2),
+        END::DECIMAL(18,8),
+        CASE WHEN s.source_system = 'SA_RETAIL' THEN s.cost ELSE NULL END::DECIMAL(18,8),
         s.quantity::INTEGER,
         CASE WHEN s.cost IS NOT NULL AND s.quantity IS NOT NULL
-                  AND s.source_system = 'SA_RETAIL'
-             THEN (s.cost * s.quantity) ELSE NULL END::DECIMAL(12,2),
+                AND s.source_system = 'SA_RETAIL'
+            THEN (s.cost * s.quantity)
+            ELSE NULL
+        END::DECIMAL(18,8),
         CASE
             WHEN s.sales_amount IS NOT NULL AND s.cost IS NOT NULL
-                 AND s.quantity IS NOT NULL
+                AND s.quantity IS NOT NULL
             THEN
                 CASE s.source_system
                     WHEN 'SA_RETAIL' THEN
@@ -835,113 +856,255 @@ BEGIN
                     ELSE NULL
                 END
             ELSE NULL
-        END::DECIMAL(12,2),
+        END::DECIMAL(18,8),
         s.source_system::VARCHAR,
         s.source_entity::VARCHAR
     FROM bl_3nf.ce_sales s
-    -- Date dimension
     LEFT JOIN bl_dm.dim_time_day dt
-           ON dt.date_src_id = TO_CHAR(s.event_dt, 'YYYYMMDD')
-    -- Customer: get the exact SCD2 version stored in ce_sales (any is_active)
+        ON dt.date_src_id = TO_CHAR(s.event_dt, 'YYYYMMDD')
     LEFT JOIN bl_3nf.ce_customers_scd ce_cust
-           ON ce_cust.customer_id = s.customer_id
-    -- Match to BL_DM by all tracked attributes (mirrors BL_3NF STEP D logic)
+        ON ce_cust.customer_id = s.customer_id
     LEFT JOIN bl_dm.dim_customers_scd dim_cust
-           ON dim_cust.customer_src_id      = ce_cust.customer_src_id
-          AND dim_cust.source_system         = ce_cust.source_system
-          AND dim_cust.customer_name         = ce_cust.customer_name
-          AND dim_cust.customer_gender       = ce_cust.customer_gender
-          AND dim_cust.customer_email        = ce_cust.customer_email
-          AND dim_cust.customer_phone_number = ce_cust.customer_phone_number
-          AND dim_cust.customer_address      = COALESCE(
-                  (SELECT loc.location_address
-                   FROM bl_3nf.ce_locations loc
-                   WHERE loc.location_id = ce_cust.customer_location_id
-                   LIMIT 1), 'n/a')
-          AND dim_cust.customer_city         = COALESCE(
-                  (SELECT loc.location_city
-                   FROM bl_3nf.ce_locations loc
-                   WHERE loc.location_id = ce_cust.customer_location_id
-                   LIMIT 1), 'n/a')
-          AND dim_cust.customer_state        = COALESCE(
-                  (SELECT loc.location_state
-                   FROM bl_3nf.ce_locations loc
-                   WHERE loc.location_id = ce_cust.customer_location_id
-                   LIMIT 1), 'n/a')
-          AND dim_cust.customer_postal_code  = COALESCE(
-                  (SELECT loc.location_postal_code
-                   FROM bl_3nf.ce_locations loc
-                   WHERE loc.location_id = ce_cust.customer_location_id
-                   LIMIT 1), 'n/a')
-    -- Employee
+        ON dim_cust.customer_src_id      = ce_cust.customer_src_id
+        AND dim_cust.source_system         = ce_cust.source_system
+        AND dim_cust.customer_name         = ce_cust.customer_name
+        AND dim_cust.customer_gender       = ce_cust.customer_gender
+        AND dim_cust.customer_email        = ce_cust.customer_email
+        AND dim_cust.customer_phone_number = ce_cust.customer_phone_number
+        AND dim_cust.customer_address      = COALESCE(
+                (SELECT loc.location_address FROM bl_3nf.ce_locations loc
+                WHERE loc.location_id = ce_cust.customer_location_id LIMIT 1), 'n/a')
+        AND dim_cust.customer_city         = COALESCE(
+                (SELECT loc.location_city FROM bl_3nf.ce_locations loc
+                WHERE loc.location_id = ce_cust.customer_location_id LIMIT 1), 'n/a')
+        AND dim_cust.customer_state        = COALESCE(
+                (SELECT loc.location_state FROM bl_3nf.ce_locations loc
+                WHERE loc.location_id = ce_cust.customer_location_id LIMIT 1), 'n/a')
+        AND dim_cust.customer_postal_code  = COALESCE(
+                (SELECT loc.location_postal_code FROM bl_3nf.ce_locations loc
+                WHERE loc.location_id = ce_cust.customer_location_id LIMIT 1), 'n/a')
     LEFT JOIN bl_3nf.ce_employees ce_emp
-           ON ce_emp.employee_id = s.employee_id
+        ON ce_emp.employee_id = s.employee_id
     LEFT JOIN bl_dm.dim_employees dim_emp
-           ON dim_emp.employee_src_id = ce_emp.employee_src_id
-          AND dim_emp.source_system   = ce_emp.source_system
-    -- Product: get the exact SCD2 version stored in ce_sales (any is_active)
+        ON dim_emp.employee_src_id = ce_emp.employee_src_id
+        AND dim_emp.source_system   = ce_emp.source_system
     LEFT JOIN bl_3nf.ce_products_scd ce_prod
-           ON ce_prod.product_id = s.product_id
-    -- Match to BL_DM by all tracked attributes
+        ON ce_prod.product_id = s.product_id
     LEFT JOIN bl_dm.dim_products_scd dim_prod
-           ON dim_prod.product_src_id      = ce_prod.product_src_id
-          AND dim_prod.source_system        = ce_prod.source_system
-          AND dim_prod.product_description  = ce_prod.product_description
-          AND dim_prod.product_colour       = ce_prod.product_colour
-          AND dim_prod.product_size         = ce_prod.product_size
-          AND dim_prod.product_min_amount   IS NOT DISTINCT FROM ce_prod.product_min_amount
-    -- Store
+        ON dim_prod.product_src_id     = ce_prod.product_src_id
+        AND dim_prod.source_system       = ce_prod.source_system
+        AND dim_prod.product_description = ce_prod.product_description
+        AND dim_prod.product_colour      = ce_prod.product_colour
+        AND dim_prod.product_size        = ce_prod.product_size
+        AND dim_prod.product_min_amount  IS NOT DISTINCT FROM ce_prod.product_min_amount
     LEFT JOIN bl_3nf.ce_stores ce_st
-           ON ce_st.store_id = s.store_id
+        ON ce_st.store_id = s.store_id
     LEFT JOIN bl_dm.dim_stores dim_st
-           ON dim_st.store_src_id = ce_st.store_src_id
-    -- Payment type
+        ON dim_st.store_src_id = ce_st.store_src_id
     LEFT JOIN bl_3nf.ce_payment_types ce_pt
-           ON ce_pt.payment_type_id = s.payment_type_id
+        ON ce_pt.payment_type_id = s.payment_type_id
     LEFT JOIN bl_dm.dim_payment_types dim_pt
-           ON dim_pt.payment_type_src_id = ce_pt.payment_type_src_id
+        ON dim_pt.payment_type_src_id = ce_pt.payment_type_src_id
     WHERE s.sale_id > 0
-      AND NOT EXISTS (
-          SELECT 1 FROM bl_dm.fct_sales_dd fct
-          WHERE fct.line_src_id   = s.sale_src_id
+    -- MONTH FILTER: only rows for the target partition month
+    AND (p_month_start IS NULL OR s.event_dt >= p_month_start)
+    AND (p_month_end   IS NULL OR s.event_dt <  p_month_end)
+    -- Incremental dedup guard
+    AND NOT EXISTS (
+        SELECT 1 FROM bl_dm.fct_sales_dd fct
+        WHERE fct.line_src_id   = s.sale_src_id
                                     || '_' || COALESCE(ce_prod.product_src_id, 'n/a')
             AND fct.source_system = s.source_system
-      );
+            AND fct.event_dt      = s.event_dt
+    );
 END;
 $$;
+
 
 CREATE OR REPLACE PROCEDURE bl_cl.prc_load_fct_sales_dd()
 LANGUAGE plpgsql AS $$
 DECLARE
-    v_rec           RECORD;
-    v_rows_inserted INTEGER := 0;
-    v_delta         INTEGER := 0;
+    v_rec               RECORD;
+    v_rows_inserted     INTEGER   := 0;
+    v_rows_inserted_month INTEGER := 0;
+    v_delta             INTEGER   := 0;
+    -- Partition management
+    v_month_start       DATE;
+    v_month_end         DATE;
+    v_partition_name    TEXT;
+    v_partition_exists  BOOLEAN;
+    -- Loop over unloaded months
+    v_month             RECORD;
 BEGIN
-    FOR v_rec IN (SELECT * FROM bl_cl.fn_get_fct_sales_dd())
+    -- ── Determine ALL unloaded months from CE_SALES ────────────────
+    -- Iterate month by month in ascending order
+    FOR v_month IN (
+        SELECT DISTINCT
+            DATE_TRUNC('month', s.event_dt)::DATE AS month_start,
+            (DATE_TRUNC('month', s.event_dt) + INTERVAL '1 month')::DATE AS month_end
+        FROM   bl_3nf.ce_sales s
+        WHERE  s.sale_id > 0
+          AND  NOT EXISTS (
+               SELECT 1 FROM bl_dm.fct_sales_dd fct
+               WHERE  fct.source_system = s.source_system
+                 AND  fct.event_dt      = s.event_dt
+                 AND  fct.line_src_id   = s.sale_src_id || '_' ||
+                      COALESCE(
+                          (SELECT p.product_src_id FROM bl_3nf.ce_products_scd p
+                           WHERE p.product_id = s.product_id LIMIT 1), 'n/a')
+          )
+        ORDER BY month_start ASC
+    )
     LOOP
-        INSERT INTO bl_dm.fct_sales_dd (
-            sales_surr_id, event_dt, date_surr_id,
-            customer_surr_id, employee_surr_id, product_surr_id,
-            store_surr_id, payment_type_surr_id,
-            payment_src_id, line_src_id,
-            fct_sales_amount, fct_discount, fct_net_amount,
-            fct_unit_cost, fct_quantity, fct_total_cost, fct_gross_profit,
-            ta_insert_dt, ta_update_dt, source_system, source_entity
-        ) VALUES (
-            nextval('bl_dm.seq_fct_sales_dd'),
-            v_rec.event_dt, v_rec.date_surr_id,
-            v_rec.customer_surr_id, v_rec.employee_surr_id, v_rec.product_surr_id,
-            v_rec.store_surr_id, v_rec.payment_type_surr_id,
-            v_rec.payment_src_id, v_rec.line_src_id,
-            v_rec.fct_sales_amount, v_rec.fct_discount, v_rec.fct_net_amount,
-            v_rec.fct_unit_cost, v_rec.fct_quantity, v_rec.fct_total_cost, v_rec.fct_gross_profit,
-            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-            v_rec.source_system, v_rec.source_entity
-        );
-        GET DIAGNOSTICS v_delta = ROW_COUNT;
-        v_rows_inserted := v_rows_inserted + v_delta;
-    END LOOP;
+        v_month_start    := v_month.month_start;
+        v_month_end      := v_month.month_end;
+        v_partition_name := 'fct_sales_dd_' || TO_CHAR(v_month_start, 'YYYY_MM');
+        v_rows_inserted_month := 0;
 
+        RAISE NOTICE '[prc_load_fct_sales_dd] Processing month: % → %',
+                     v_month_start, v_month_end;
+
+        -- ── Check if partition already attached ────────────────────
+        SELECT EXISTS (
+            SELECT 1
+            FROM   pg_inherits  i
+            JOIN   pg_class     c ON c.oid = i.inhrelid
+            JOIN   pg_namespace n ON n.oid = c.relnamespace
+            JOIN   pg_class     p ON p.oid = i.inhparent
+            WHERE  n.nspname = 'bl_dm'
+              AND  c.relname  = v_partition_name
+              AND  p.relname  = 'fct_sales_dd'
+        ) INTO v_partition_exists;
+
+        -- ── STEP 1: Create partition table if not exists ───────────
+        -- Use final partition name directly (no separate staging name)
+        EXECUTE format(
+            'CREATE TABLE IF NOT EXISTS bl_dm.%I
+             (LIKE bl_dm.fct_sales_dd INCLUDING DEFAULTS INCLUDING CONSTRAINTS)',
+            v_partition_name
+        );
+        RAISE NOTICE '[prc_load_fct_sales_dd] Table bl_dm.% ready.', v_partition_name;
+
+        -- ── STEP 2: Load rows for this month into partition table ──
+        FOR v_rec IN (
+            SELECT * FROM bl_cl.fn_get_fct_sales_dd(v_month_start, v_month_end)
+        )
+        LOOP
+            EXECUTE format(
+                'INSERT INTO bl_dm.%I (
+                    sales_surr_id, event_dt, date_surr_id,
+                    customer_surr_id, employee_surr_id, product_surr_id,
+                    store_surr_id, payment_type_surr_id,
+                    payment_src_id, line_src_id,
+                    fct_sales_amount, fct_discount, fct_net_amount,
+                    fct_unit_cost, fct_quantity, fct_total_cost, fct_gross_profit,
+                    ta_insert_dt, ta_update_dt, source_system, source_entity
+                )
+                SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+                       $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM bl_dm.%I s
+                    WHERE s.line_src_id   = $10
+                      AND s.source_system = $20
+                      AND s.event_dt      = $2
+                )',
+                v_partition_name,
+                v_partition_name
+            )
+            USING
+                nextval('bl_dm.seq_fct_sales_dd'),
+                v_rec.event_dt,
+                v_rec.date_surr_id,
+                v_rec.customer_surr_id,
+                v_rec.employee_surr_id,
+                v_rec.product_surr_id,
+                v_rec.store_surr_id,
+                v_rec.payment_type_surr_id,
+                v_rec.payment_src_id,
+                v_rec.line_src_id,
+                v_rec.fct_sales_amount,
+                v_rec.fct_discount,
+                v_rec.fct_net_amount,
+                v_rec.fct_unit_cost,
+                v_rec.fct_quantity,
+                v_rec.fct_total_cost,
+                v_rec.fct_gross_profit,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                v_rec.source_system,
+                v_rec.source_entity;
+
+            GET DIAGNOSTICS v_delta = ROW_COUNT;
+            v_rows_inserted_month := v_rows_inserted_month + v_delta;
+            v_rows_inserted       := v_rows_inserted       + v_delta;
+        END LOOP;
+
+        RAISE NOTICE '[prc_load_fct_sales_dd] Loaded % rows for month bl_dm.%.',
+                     v_rows_inserted_month, v_partition_name;
+
+        -- ── STEP 3: ATTACH partition (only if not yet attached) ────
+        IF NOT v_partition_exists THEN
+            EXECUTE format(
+                'ALTER TABLE bl_dm.fct_sales_dd
+                 ATTACH PARTITION bl_dm.%I
+                 FOR VALUES FROM (%L) TO (%L)',
+                v_partition_name,
+                v_month_start,
+                v_month_end
+            );
+            RAISE NOTICE '[prc_load_fct_sales_dd] ATTACHED bl_dm.% → [% , %).',
+                         v_partition_name, v_month_start, v_month_end;
+        ELSE
+            RAISE NOTICE '[prc_load_fct_sales_dd] Partition bl_dm.% already attached — skipping.',
+                         v_partition_name;
+        END IF;
+        -- ── STEP 3b: Add FK constraints to newly attached partition ──
+        -- FK constraints cannot be set on partitioned parent table —
+        -- they must be added per partition after ATTACH.
+        IF NOT v_partition_exists THEN
+            EXECUTE format(
+                'ALTER TABLE bl_dm.%I
+                ADD CONSTRAINT fk_%s_date
+                    FOREIGN KEY (date_surr_id)
+                    REFERENCES bl_dm.dim_time_day(date_surr_id),
+                ADD CONSTRAINT fk_%s_employee
+                    FOREIGN KEY (employee_surr_id)
+                    REFERENCES bl_dm.dim_employees(employee_surr_id),
+                ADD CONSTRAINT fk_%s_store
+                    FOREIGN KEY (store_surr_id)
+                    REFERENCES bl_dm.dim_stores(store_surr_id),
+                ADD CONSTRAINT fk_%s_payment
+                    FOREIGN KEY (payment_type_surr_id)
+                    REFERENCES bl_dm.dim_payment_types(payment_type_surr_id)',
+                v_partition_name,
+                v_partition_name,  -- for fk name
+                v_partition_name,
+                v_partition_name,
+                v_partition_name
+            );
+            RAISE NOTICE '[prc_load_fct_sales_dd] FK constraints added to bl_dm.%.',
+                        v_partition_name;
+        END IF;
+
+        -- ── STEP 4: (removed) — rolling window partition drop.
+        -- NOTE: previously this step DETACHed + DROPped partitions older
+        -- than N months. That permanently deletes historical fact rows,
+        -- which breaks DQ test 4.06 (CE_SALES → FCT_SALES_DD coverage —
+        -- dropped months show up as "missing") and DQ test 5.04/5.08
+        -- (restartability — a re-run detects the dropped months as
+        -- "unloaded" again via fn_get_fct_sales_dd and re-inserts them,
+        -- so row counts differ between runs). FCT_SALES_DD keeps monthly
+        -- partitions for manageability, but partitions are retained
+        -- permanently — no data is ever dropped.
+
+    END LOOP; -- end month loop
+
+    -- ── Handle case: no new data at all ────────────────────────────
+    IF v_rows_inserted = 0 THEN
+        RAISE NOTICE '[prc_load_fct_sales_dd] No new data found — idempotent re-run.';
+    END IF;
+
+    -- ── Log success ─────────────────────────────────────────────────
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_fct_sales_dd',
         p_rows_inserted  => v_rows_inserted,
@@ -1021,6 +1184,17 @@ $$;
 -- EXECUTION ENTRY POINT
 -- ============================================================
 CALL bl_cl.prc_master_load_bldm();
+
+-- ============================================================
+-- POST-LOAD MAINTENANCE - VACUUM ANALYZE
+-- Run on all DIM tables and current FCT partition.
+-- ============================================================
+VACUUM ANALYZE bl_dm.dim_payment_types;
+VACUUM ANALYZE bl_dm.dim_employees;
+VACUUM ANALYZE bl_dm.dim_stores;
+VACUUM ANALYZE bl_dm.dim_customers_scd;
+VACUUM ANALYZE bl_dm.dim_products_scd;
+VACUUM ANALYZE bl_dm.fct_sales_dd;
 
 -- ============================================================
 -- FINAL VERIFICATION — Row counts across all BL_DM tables

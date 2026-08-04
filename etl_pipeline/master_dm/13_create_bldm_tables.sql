@@ -400,6 +400,28 @@ COMMENT ON COLUMN bl_dm.dim_products_scd.source_entity             IS 'Source tr
 --               Unique line identifier per grain.
 --               Composed as: PAYMENT_SRC_ID || '_' || PRODUCT_SRC_ID
 -- ============================================================
+-- ============================================================
+-- GROUP 4 - FACT TABLE: FCT_SALES_DD — PARTITIONED
+--
+-- PARTITIONING STRATEGY:
+--   PARTITION BY RANGE (event_dt) — monthly partitions.
+--   Each month = one partition (e.g. fct_sales_dd_2024_01).
+--   Rolling window: keep 2-3 months of partitions.
+--   Load pattern:
+--     1. Create staging table (LIKE fct_sales_dd).
+--     2. Load new month's data into staging table.
+--     3. ATTACH staging table as new partition.
+--     4. DETACH + DROP oldest partition (rolling window).
+--
+-- NOTE ON CONSTRAINTS WITH PARTITIONED TABLE:
+--   - PRIMARY KEY must include the partition key (event_dt).
+--   - UNIQUE constraint on (line_src_id, source_system) must
+--     include event_dt to be compatible with partitioning.
+--   - DB-level FK constraints from partitioned table to DIM
+--     tables are defined per partition (inherited automatically
+--     in PostgreSQL 12+ via declarative partitioning).
+--   - FK to DIM_CUSTOMERS_SCD and DIM_PRODUCTS_SCD: LOGICAL ONLY.
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_dd (
     sales_surr_id           BIGINT          NOT NULL    DEFAULT nextval('bl_dm.seq_fct_sales_dd'),
@@ -423,26 +445,38 @@ CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_dd (
     ta_update_dt            TIMESTAMP            NOT NULL,
     source_system           VARCHAR(50)     NOT NULL,
     source_entity           VARCHAR(50)     NOT NULL,
-    CONSTRAINT pk_fct_sales_dd              PRIMARY KEY (sales_surr_id),
-    -- Grain uniqueness: one product line item per transaction per source
-    CONSTRAINT uq_fct_sales_dd_grain        UNIQUE      (line_src_id, source_system),
-    -- DB-level FK constraints to SCD Type 0 / 1 dimensions:
-    CONSTRAINT fk_fct_sales_dd_date         FOREIGN KEY (date_surr_id)
-                                            REFERENCES  bl_dm.dim_time_day      (date_surr_id),
-    CONSTRAINT fk_fct_sales_dd_employee     FOREIGN KEY (employee_surr_id)
-                                            REFERENCES  bl_dm.dim_employees     (employee_surr_id),
-    CONSTRAINT fk_fct_sales_dd_store        FOREIGN KEY (store_surr_id)
-                                            REFERENCES  bl_dm.dim_stores        (store_surr_id),
-    CONSTRAINT fk_fct_sales_dd_payment_type FOREIGN KEY (payment_type_surr_id)
-                                            REFERENCES  bl_dm.dim_payment_types (payment_type_surr_id),
-    CONSTRAINT chk_fct_sales_dd_quantity CHECK (fct_quantity IS NULL OR fct_quantity >= 0)
-    -- NOTE: FK to DIM_CUSTOMERS_SCD (customer_surr_id) and
+    -- PK includes partition key for declarative partitioning
+    CONSTRAINT pk_fct_sales_dd              PRIMARY KEY (sales_surr_id, event_dt),
+    -- Grain uniqueness: one product line item per transaction per source and includes partition key
+    CONSTRAINT uq_fct_sales_dd_grain        UNIQUE (line_src_id, source_system, event_dt),
+    CONSTRAINT chk_fct_sales_dd_quantity
+        CHECK (fct_quantity IS NULL OR fct_quantity >= 0)
+    -- NOTE: FK constraints to DIM tables are NOT declared here
+    -- on the partitioned parent — they must be added per partition
+    -- or enforced via ETL logic (COALESCE to -1).
+    -- -- DB-level FK constraints to SCD Type 0 / 1 dimensions - added to each partition:
+    -- CONSTRAINT fk_fct_sales_dd_date         FOREIGN KEY (date_surr_id)
+    --                                         REFERENCES  bl_dm.dim_time_day      (date_surr_id),
+    -- CONSTRAINT fk_fct_sales_dd_employee     FOREIGN KEY (employee_surr_id)
+    --                                         REFERENCES  bl_dm.dim_employees     (employee_surr_id),
+    -- CONSTRAINT fk_fct_sales_dd_store        FOREIGN KEY (store_surr_id)
+    --                                         REFERENCES  bl_dm.dim_stores        (store_surr_id),
+    -- CONSTRAINT fk_fct_sales_dd_payment_type FOREIGN KEY (payment_type_surr_id)
+    --                                         REFERENCES  bl_dm.dim_payment_types (payment_type_surr_id),
+    -- CONSTRAINT chk_fct_sales_dd_quantity CHECK (fct_quantity IS NULL OR fct_quantity >= 0)
+    -- -- NOTE: FK to DIM_CUSTOMERS_SCD (customer_surr_id) and
     --       DIM_PRODUCTS_SCD (product_surr_id) are LOGICAL ONLY.
-);
+)
+PARTITION BY RANGE (event_dt);
 
-COMMENT ON TABLE  bl_dm.fct_sales_dd IS
-    'Fact table - Dimensional Model layer. '
+COMMENT ON TABLE bl_dm.fct_sales_dd IS
+    'Fact table - Dimensional Model layer. Partitioned by RANGE (event_dt). '
+    'Monthly partitions. Rolling window of 2-3 months. '
+    'Load via staging table + ATTACH PARTITION + DETACH oldest partition. '
+    
     'One row per product line item per sales transaction (grain). '
+    'PK includes event_dt (required by declarative partitioning). '
+    'FK to DIM_CUSTOMERS_SCD and DIM_PRODUCTS_SCD: LOGICAL ONLY.'
     'Append-only incremental load. No default row. '
     'Grain: LINE_SRC_ID (PAYMENT_SRC_ID||''_''||PRODUCT_SRC_ID) + SOURCE_SYSTEM. '
     'Using line_src_id avoids SCD2 surr_id version ambiguity in grain constraint. '
