@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_product_top_categories (
     source_system                   VARCHAR(50)     NOT NULL,
     source_entity                   VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_product_top_categories         PRIMARY KEY (product_top_category_id),
-    CONSTRAINT uq_ce_product_top_categories_src_id  UNIQUE      (product_top_category_src_id)
+    CONSTRAINT uq_ce_product_top_categories_src_id  UNIQUE      (product_top_category_src_id, source_system)
 );
 
 COMMENT ON TABLE  bl_3nf.ce_product_top_categories                          IS 'SCD Type 1 - Broadest product classification. E.g. TOPS, BOTTOMS, SHOES, ACCESSORIES. NK = UPPER(TRIM(top_category)). No _DESC column: not available in source data. Ecom has no top_category → FK in CE_PRODUCTS_SCD defaults to -1.';
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_product_categories (
     source_system               VARCHAR(50)     NOT NULL,
     source_entity               VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_product_categories             PRIMARY KEY (product_category_id),
-    CONSTRAINT uq_ce_product_categories_src_id      UNIQUE      (product_category_src_id),
+    CONSTRAINT uq_ce_product_categories_src_id      UNIQUE      (product_category_src_id, source_system),
     CONSTRAINT fk_ce_product_categories_top_cat     FOREIGN KEY (product_top_category_id)
                                                     REFERENCES  bl_3nf.ce_product_top_categories (product_top_category_id)
 );
@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_product_subcategories (
     source_system                   VARCHAR(50)     NOT NULL,
     source_entity                   VARCHAR(50)     NOT NULL,
     CONSTRAINT pk_ce_product_subcategories              PRIMARY KEY (product_subcategory_id),
-    CONSTRAINT uq_ce_product_subcategories_src_id       UNIQUE      (product_subcategory_src_id),
+    CONSTRAINT uq_ce_product_subcategories_src_id       UNIQUE      (product_subcategory_src_id, source_system),
     CONSTRAINT fk_ce_product_subcategories_cat          FOREIGN KEY (product_category_id)
                                                         REFERENCES  bl_3nf.ce_product_categories (product_category_id)
 );
