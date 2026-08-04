@@ -1509,7 +1509,7 @@ BEGIN
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
 
-    -- ── STEP C: Insert brand-new customer versions (combination of attrs not yet in target) ─
+    -- ── STEP C: Insert brand-new customers (NK not in target yet) ───
     INSERT INTO bl_3nf.ce_customers_scd (
         customer_id,
         customer_src_id,
@@ -1536,7 +1536,7 @@ BEGIN
         COALESCE(loc.location_id, -1),
         CURRENT_DATE,
         DATE '9999-12-31',
-        'N',           -- starts as inactive; STEP D will set the correct active version
+        'Y',
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP,
         src.source_system,
@@ -1545,67 +1545,15 @@ BEGIN
     LEFT JOIN bl_3nf.ce_locations loc
         ON loc.location_src_id = src.location_src_id
         AND loc.source_system = src.source_system
-    -- Insert only if this exact combination of attributes does not yet exist
+    -- Only brand-new customers: NK has never appeared in target
     WHERE NOT EXISTS (
         SELECT 1
         FROM   bl_3nf.ce_customers_scd tgt
-        WHERE  tgt.customer_src_id       = src.customer_src_id
-        AND  tgt.source_system         = src.source_system
-        AND  tgt.customer_name         = src.customer_name
-        AND  tgt.customer_gender       = src.customer_gender
-        AND  tgt.customer_email        = src.customer_email
-        AND  tgt.customer_phone_number = src.customer_phone_number
-        AND  tgt.customer_location_id  = COALESCE(loc.location_id, -1)
+        WHERE  tgt.customer_src_id = src.customer_src_id
+            AND tgt.source_system = src.source_system
     );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
-
-    -- ── STEP D: Activate correct version, deactivate all others ────
-    UPDATE bl_3nf.ce_customers_scd tgt
-    SET
-        is_active    = 'Y',
-        end_dt       = DATE '9999-12-31',
-        ta_update_dt = CURRENT_TIMESTAMP
-    FROM bl_cl.fn_get_ce_customers_scd() src
-    LEFT JOIN bl_3nf.ce_locations loc
-        ON loc.location_src_id = src.location_src_id
-        AND loc.source_system = src.source_system
-    WHERE tgt.customer_src_id       = src.customer_src_id
-    AND tgt.source_system          = src.source_system
-    AND tgt.customer_id            > 0
-    AND tgt.customer_name          = src.customer_name
-    AND tgt.customer_gender        = src.customer_gender
-    AND tgt.customer_email         = src.customer_email
-    AND tgt.customer_phone_number  = src.customer_phone_number
-    AND tgt.customer_location_id   = COALESCE(loc.location_id, -1)
-    AND tgt.is_active               = 'N';   -- only activate if currently inactive
-    GET DIAGNOSTICS v_delta = ROW_COUNT;
-    v_rows_updated := v_rows_updated + v_delta;
-
-    UPDATE bl_3nf.ce_customers_scd tgt
-    SET
-        is_active    = 'N',
-        end_dt       = CASE WHEN tgt.end_dt = DATE '9999-12-31'
-                            THEN CURRENT_DATE - 1
-                            ELSE tgt.end_dt END,
-        ta_update_dt = CURRENT_TIMESTAMP
-    FROM bl_cl.fn_get_ce_customers_scd() src
-    LEFT JOIN bl_3nf.ce_locations loc
-        ON loc.location_src_id = src.location_src_id
-        AND loc.source_system = src.source_system
-    WHERE tgt.customer_src_id      = src.customer_src_id
-    AND tgt.source_system         = src.source_system
-    AND tgt.customer_id           > 0
-    AND tgt.is_active              = 'Y'   -- only deactivate currently active
-    AND (
-            tgt.customer_name         <> src.customer_name
-        OR tgt.customer_gender       <> src.customer_gender
-        OR tgt.customer_email        <> src.customer_email
-        OR tgt.customer_phone_number <> src.customer_phone_number
-        OR tgt.customer_location_id  <> COALESCE(loc.location_id, -1)
-    );
-    GET DIAGNOSTICS v_delta = ROW_COUNT;
-    v_rows_updated := v_rows_updated + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_ce_customers_scd',
@@ -1790,94 +1738,61 @@ BEGIN
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
 
-    -- ── STEP C: Insert brand-new product versions (combination of attrs not yet in target) ─
-    INSERT INTO bl_3nf.ce_products_scd (
-        product_id,
-        product_src_id,
-        product_subcategory_id,
-        product_description,
-        product_colour,
-        product_size,
-        product_min_amount,
-        start_dt,
-        end_dt,
-        is_active,
-        ta_insert_dt,
-        ta_update_dt,
-        source_system,
-        source_entity
-    )
-    SELECT
-        nextval('bl_3nf.seq_ce_products_scd'),
-        src.product_src_id,
-        COALESCE(sub.product_subcategory_id, -1),
-        src.product_description,
-        src.product_colour,
-        src.product_size,
-        src.product_min_amount,
-        CURRENT_DATE,
-        DATE '9999-12-31',
-        'N',           -- starts as inactive; STEP D will set the correct active version
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP,
-        src.source_system,
-        src.source_entity
-    FROM bl_cl.fn_get_ce_products_scd() src
-    LEFT JOIN bl_3nf.ce_product_subcategories sub
-        ON sub.product_subcategory_src_id = src.subcategory_src_id
-    AND sub.source_system               = src.source_system
-    -- Insert only if this exact combination of attributes does not yet exist
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM   bl_3nf.ce_products_scd tgt
-        WHERE  tgt.product_src_id        = src.product_src_id
-        AND  tgt.source_system         = src.source_system
-        AND  tgt.product_description   = src.product_description
-        AND  tgt.product_colour        = src.product_colour
-        AND  tgt.product_size          = src.product_size
-        AND  tgt.product_min_amount    IS NOT DISTINCT FROM src.product_min_amount
-    );
+    -- ── STEP C: Insert brand-new products (NK not in target yet) ────
+    MERGE INTO bl_3nf.ce_products_scd AS tgt
+    USING (
+        SELECT
+            src.product_src_id,
+            COALESCE(sub.product_subcategory_id, -1) AS product_subcategory_id,
+            src.product_description,
+            src.product_colour,
+            src.product_size,
+            src.product_min_amount,
+            src.source_system,
+            src.source_entity
+        FROM bl_cl.fn_get_ce_products_scd() src
+        LEFT JOIN bl_3nf.ce_product_subcategories sub
+            ON sub.product_subcategory_src_id = src.subcategory_src_id
+            AND sub.source_system               = src.source_system
+    ) AS src
+    ON tgt.product_src_id = src.product_src_id
+        AND tgt.source_system = src.source_system
+        AND tgt.is_active   = 'Y'
+    WHEN NOT MATCHED THEN
+        INSERT (
+            product_id,
+            product_src_id,
+            product_subcategory_id,
+            product_description,
+            product_colour,
+            product_size,
+            product_min_amount,
+            start_dt,
+            end_dt,
+            is_active,
+            ta_insert_dt,
+            ta_update_dt,
+            source_system,
+            source_entity
+        )
+        VALUES (
+            nextval('bl_3nf.seq_ce_products_scd'),
+            src.product_src_id,
+            src.product_subcategory_id,
+            src.product_description,
+            src.product_colour,
+            src.product_size,
+            src.product_min_amount,
+            CURRENT_DATE,
+            DATE '9999-12-31',
+            'Y',
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP,
+            src.source_system,
+            src.source_entity
+        );
     GET DIAGNOSTICS v_delta = ROW_COUNT;
     v_rows_inserted := v_rows_inserted + v_delta;
-
-    -- Only touches rows where is_active or end_dt actually needs to change
-    UPDATE bl_3nf.ce_products_scd tgt
-    SET
-        is_active    = 'Y',
-        end_dt       = DATE '9999-12-31',
-        ta_update_dt = CURRENT_TIMESTAMP
-    FROM bl_cl.fn_get_ce_products_scd() src
-    WHERE tgt.product_src_id      = src.product_src_id
-    AND tgt.source_system        = src.source_system
-    AND tgt.product_id           > 0
-    AND tgt.product_description  = src.product_description
-    AND tgt.product_colour       = src.product_colour
-    AND tgt.product_size         = src.product_size
-    AND tgt.product_min_amount   IS NOT DISTINCT FROM src.product_min_amount
-    AND tgt.is_active             = 'N';   -- only activate if currently inactive
-    GET DIAGNOSTICS v_delta = ROW_COUNT;
-    v_rows_updated := v_rows_updated + v_delta;
-
-    UPDATE bl_3nf.ce_products_scd tgt
-    SET
-        is_active    = 'N',
-        end_dt       = CASE WHEN tgt.end_dt = DATE '9999-12-31'
-                            THEN CURRENT_DATE - 1
-                            ELSE tgt.end_dt END,
-        ta_update_dt = CURRENT_TIMESTAMP
-    FROM bl_cl.fn_get_ce_products_scd() src
-    WHERE tgt.product_src_id = src.product_src_id
-    AND tgt.source_system   = src.source_system
-    AND tgt.product_id      > 0
-    AND tgt.is_active        = 'Y'   -- only deactivate currently active
-    AND (
-            tgt.product_description <> src.product_description
-        OR tgt.product_colour      <> src.product_colour
-        OR tgt.product_size        <> src.product_size
-        OR tgt.product_min_amount  IS DISTINCT FROM src.product_min_amount
-    );
-    GET DIAGNOSTICS v_delta = ROW_COUNT;
-    v_rows_updated := v_rows_updated + v_delta;
 
     CALL bl_cl.prc_log_procedure(
         p_procedure_name => 'prc_load_ce_products_scd',
