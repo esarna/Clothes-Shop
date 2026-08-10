@@ -187,7 +187,8 @@ BEGIN
         WHERE  s.sale_id > 0
     ) src
     WHERE NOT EXISTS (
-        SELECT 1 FROM bl_dm.fct_sales_dd tgt
+        -- from all partitions — full history.
+        SELECT 1 FROM bl_dm.v_fct_sales_dd_full tgt
         WHERE  tgt.line_src_id   = src.line_src_id
           AND  tgt.source_system = src.source_system
     );

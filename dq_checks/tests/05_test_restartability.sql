@@ -40,7 +40,7 @@ BEGIN
     SELECT COUNT(*) INTO v_before_ce_sales       FROM bl_3nf.ce_sales;
     SELECT COUNT(*) INTO v_before_ce_customers   FROM bl_3nf.ce_customers_scd  WHERE customer_id > 0;
     SELECT COUNT(*) INTO v_before_ce_products    FROM bl_3nf.ce_products_scd   WHERE product_id  > 0;
-    SELECT COUNT(*) INTO v_before_fct_sales      FROM bl_dm.fct_sales_dd;
+    SELECT COUNT(*) INTO v_before_fct_sales      FROM bl_dm.v_fct_sales_dd_full;
     SELECT COUNT(*) INTO v_before_dim_customers  FROM bl_dm.dim_customers_scd  WHERE customer_surr_id > 0;
     SELECT COUNT(*) INTO v_before_dim_products   FROM bl_dm.dim_products_scd   WHERE product_surr_id  > 0;
 
@@ -69,7 +69,7 @@ BEGIN
     SELECT COUNT(*) INTO v_after_ce_sales       FROM bl_3nf.ce_sales;
     SELECT COUNT(*) INTO v_after_ce_customers   FROM bl_3nf.ce_customers_scd  WHERE customer_id > 0;
     SELECT COUNT(*) INTO v_after_ce_products    FROM bl_3nf.ce_products_scd   WHERE product_id  > 0;
-    SELECT COUNT(*) INTO v_after_fct_sales      FROM bl_dm.fct_sales_dd;
+    SELECT COUNT(*) INTO v_after_fct_sales      FROM bl_dm.v_fct_sales_dd_full;
     SELECT COUNT(*) INTO v_after_dim_customers  FROM bl_dm.dim_customers_scd  WHERE customer_surr_id > 0;
     SELECT COUNT(*) INTO v_after_dim_products   FROM bl_dm.dim_products_scd   WHERE product_surr_id  > 0;
 

@@ -933,6 +933,12 @@ DECLARE
     v_month_end         DATE;
     v_partition_name    TEXT;
     v_partition_exists  BOOLEAN;
+    v_reactivated       BOOLEAN;
+    -- Rolling window: keep 3 months attached, archive older ones
+    v_rolling_months    INTEGER   := 3;
+    v_old_month_start   DATE;
+    v_old_partition     TEXT;
+    v_archive_union     TEXT;
     -- Loop over unloaded months
     v_month             RECORD;
 BEGIN
@@ -975,6 +981,13 @@ BEGIN
               AND  c.relname  = v_partition_name
               AND  p.relname  = 'fct_sales_dd'
         ) INTO v_partition_exists;
+
+        -- Reactivate a rolled-off (detached) partition if data in non-chronogical order
+        SELECT EXISTS (
+            SELECT 1 FROM pg_tables
+            WHERE  schemaname = 'bl_dm'
+              AND  tablename  = v_partition_name
+        ) INTO v_reactivated;
 
         -- ── STEP 1: Create partition table if not exists ───────────
         -- Use final partition name directly (no separate staging name)
@@ -1060,8 +1073,9 @@ BEGIN
         END IF;
         -- ── STEP 3b: Add FK constraints to newly attached partition ──
         -- FK constraints cannot be set on partitioned parent table —
-        -- they must be added per partition after ATTACH.
-        IF NOT v_partition_exists THEN
+        -- they must be added per partition after ATTACH. Skip for
+        -- reactivated partitions — their constraints already exist.
+        IF NOT v_partition_exists AND NOT v_reactivated THEN
             EXECUTE format(
                 'ALTER TABLE bl_dm.%I
                 ADD CONSTRAINT fk_%s_date
@@ -1086,18 +1100,52 @@ BEGIN
                         v_partition_name;
         END IF;
 
-        -- ── STEP 4: (removed) — rolling window partition drop.
-        -- NOTE: previously this step DETACHed + DROPped partitions older
-        -- than N months. That permanently deletes historical fact rows,
-        -- which breaks DQ test 4.06 (CE_SALES → FCT_SALES_DD coverage —
-        -- dropped months show up as "missing") and DQ test 5.04/5.08
-        -- (restartability — a re-run detects the dropped months as
-        -- "unloaded" again via fn_get_fct_sales_dd and re-inserts them,
-        -- so row counts differ between runs). FCT_SALES_DD keeps monthly
-        -- partitions for manageability, but partitions are retained
-        -- permanently — no data is ever dropped.
+        -- ── STEP 4: Rolling window — DETACH partitions older than N ──
+        -- months. The table is kept (not dropped, not moved out of
+        -- bl_dm) so full history stays available and queryable via
+        -- bl_dm.v_fct_sales_dd_full, while bl_dm.fct_sales_dd itself
+        -- only keeps the hot rolling window attached.
+        v_old_month_start := (v_month_start - (v_rolling_months * INTERVAL '1 month'))::DATE;
+        v_old_partition   := 'fct_sales_dd_' || TO_CHAR(v_old_month_start, 'YYYY_MM');
+
+        IF EXISTS (
+            SELECT 1
+            FROM   pg_inherits  i
+            JOIN   pg_class     c ON c.oid = i.inhrelid
+            JOIN   pg_namespace n ON n.oid = c.relnamespace
+            JOIN   pg_class     p ON p.oid = i.inhparent
+            WHERE  n.nspname = 'bl_dm'
+              AND  c.relname  = v_old_partition
+              AND  p.relname  = 'fct_sales_dd'
+        ) THEN
+            EXECUTE format(
+                'ALTER TABLE bl_dm.fct_sales_dd DETACH PARTITION bl_dm.%I',
+                v_old_partition
+            );
+            RAISE NOTICE '[prc_load_fct_sales_dd] DETACHED old partition bl_dm.%.',
+                         v_old_partition;
+        ELSE
+            RAISE NOTICE '[prc_load_fct_sales_dd] No old partition bl_dm.% to detach.', v_old_partition;
+        END IF;
 
     END LOOP; -- end month loop
+
+    -- ── Rebuild full-history view: hot (attached) + detached monthly partitions.
+    SELECT string_agg(format('SELECT * FROM bl_dm.%I', c.relname), ' UNION ALL ')
+    INTO   v_archive_union
+    FROM   pg_class c
+    JOIN   pg_namespace n ON n.oid = c.relnamespace
+    WHERE  n.nspname   = 'bl_dm'
+      AND  c.relkind    = 'r'
+      AND  c.relname LIKE 'fct_sales_dd\_%' ESCAPE '\'
+      AND  NOT EXISTS (
+            SELECT 1 FROM pg_inherits i WHERE i.inhrelid = c.oid
+      );
+
+    EXECUTE format(
+        'CREATE OR REPLACE VIEW bl_dm.v_fct_sales_dd_full AS SELECT * FROM bl_dm.fct_sales_dd%s',
+        CASE WHEN v_archive_union IS NOT NULL THEN ' UNION ALL ' || v_archive_union ELSE '' END
+    );
 
     -- ── Handle case: no new data at all ────────────────────────────
     IF v_rows_inserted = 0 THEN
