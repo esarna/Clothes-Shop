@@ -833,11 +833,7 @@ BEGIN
         (s.sale_src_id || '_' || COALESCE(ce_prod.product_src_id, 'n/a'))::VARCHAR,
         s.sales_amount::DECIMAL(18,8),
         s.discount::DECIMAL(18,8),
-        CASE s.source_system
-            WHEN 'SA_RETAIL' THEN (s.sales_amount - COALESCE(s.discount,0))
-            WHEN 'SA_ECOM'   THEN s.sales_amount
-            ELSE NULL
-        END::DECIMAL(18,8),
+        s.sales_amount::DECIMAL(18,8),
         CASE WHEN s.source_system = 'SA_RETAIL' THEN s.cost ELSE NULL END::DECIMAL(18,8),
         s.quantity::INTEGER,
         CASE WHEN s.cost IS NOT NULL AND s.quantity IS NOT NULL
@@ -851,7 +847,7 @@ BEGIN
             THEN
                 CASE s.source_system
                     WHEN 'SA_RETAIL' THEN
-                        (s.sales_amount - COALESCE(s.discount,0)) - (s.cost * s.quantity)
+                        s.sales_amount - (s.cost * s.quantity)
                     WHEN 'SA_ECOM' THEN s.sales_amount
                     ELSE NULL
                 END
