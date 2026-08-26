@@ -13,7 +13,7 @@ SELECT bl_cl.fn_log_profile_safe('BL_DM','bl_dm','fct_sales_dd',NULL,ss,'ROW_COU
 FROM   unnest(ARRAY['SA_RETAIL','SA_ECOM']) ss;
 
 -- ---------- fct_sales_dd ROW_COUNT per attached partition ----------
-SELECT bl_cl.fn_log_profile_safe('BL_DM','bl_dm', c.relname, NULL, 'BOTH', 'ROW_COUNT',
+SELECT bl_cl.fn_log_profile_safe('BL_DM','bl_dm', c.relname::text, NULL, 'BOTH', 'ROW_COUNT',
     format('SELECT COUNT(*)::text FROM bl_dm.%I', c.relname),
     'per-partition row count')
 FROM   pg_inherits i

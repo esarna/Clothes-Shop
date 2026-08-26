@@ -6,13 +6,13 @@
 SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',NULL,'SA_RETAIL','ROW_COUNT',
     'SELECT COUNT(*)::text FROM sa_retail.src_retail_sales');
 SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',NULL,'SA_RETAIL','ROW_COUNT_DELTA',
-    '(SELECT (SELECT COUNT(*) FROM sa_retail.ext_retail_sales) - (SELECT COUNT(*) FROM sa_retail.src_retail_sales))::text',
+    'SELECT ((SELECT COUNT(*) FROM sa_retail.ext_retail_sales) - (SELECT COUNT(*) FROM sa_retail.src_retail_sales))::text',
     'Expected delta = rows removed by dedup + NULL-key filter');
 
 SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','ROW_COUNT',
     'SELECT COUNT(*)::text FROM sa_ecom.src_ecom_sales');
 SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','ROW_COUNT_DELTA',
-    '(SELECT (SELECT COUNT(*) FROM sa_ecom.ext_ecom_sales) - (SELECT COUNT(*) FROM sa_ecom.src_ecom_sales))::text',
+    'SELECT ((SELECT COUNT(*) FROM sa_ecom.ext_ecom_sales) - (SELECT COUNT(*) FROM sa_ecom.src_ecom_sales))::text',
     'Expected delta = rows removed by dedup + NULL-key filter');
 
 -- ---------- NULL_COUNT / NULL_PCT post-cast (guard rejections) - retail ----------
@@ -70,6 +70,6 @@ FROM   unnest(ARRAY['description','customer_name','employee_name','customer_addr
 
 -- ---------- DUPLICATE_FULL_ROW_COUNT (expected 0, post-dedup) ----------
 SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',NULL,'SA_RETAIL','DUPLICATE_FULL_ROW_COUNT',
-    'SELECT COALESCE(SUM(c) - COUNT(*), 0)::text FROM (SELECT COUNT(*) c FROM sa_retail.src_retail_sales GROUP BY bill_id, product_code, line_item_amount, quantity_sold HAVING COUNT(*) > 1) d');
+    'SELECT (COUNT(*) - COUNT(DISTINCT t.*::text))::text FROM sa_retail.src_retail_sales t');
 SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','DUPLICATE_FULL_ROW_COUNT',
-    'SELECT COALESCE(SUM(c) - COUNT(*), 0)::text FROM (SELECT COUNT(*) c FROM sa_ecom.src_ecom_sales GROUP BY payment_id, product_code, sales_amount, quantity HAVING COUNT(*) > 1) d');
+    'SELECT (COUNT(*) - COUNT(DISTINCT t.*::text))::text FROM sa_ecom.src_ecom_sales t');

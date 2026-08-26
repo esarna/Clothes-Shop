@@ -108,20 +108,23 @@ BEGIN
     -- ============================================================
     -- 9.04 - Security sweep: sensitive columns absent from SA/BL_3NF/BL_DM (all schemas at once)
     -- ============================================================
+    -- ext_* foreign tables are raw 1:1 CSV mirrors and are expected to carry
+    -- sensitive columns; the exclusion policy applies from src_* onward.
     v_tests_run := v_tests_run + 1;
     SELECT COUNT(*) INTO v_count
     FROM   information_schema.columns
     WHERE  table_schema IN ('sa_retail', 'sa_ecom', 'bl_3nf', 'bl_dm')
+      AND  table_name NOT LIKE 'ext_%'
       AND  lower(column_name) IN ('customer_ssn','employee_ssn','ee_ssn','user_ssn','credit_card_number',
                                    'credit_card_expiration_date','credit_card_cvv','cvv','iban','bank_number');
     IF v_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
-        RAISE NOTICE '  [PASS] 9.04  Full sweep: sensitive columns absent from SA/BL_3NF/BL_DM';
-        CALL bl_cl.prc_log_test_result('TC-SEC-ALL-01','Sensitive columns absent across SA/BL_3NF/BL_DM (full sweep)','SECURITY',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Critical','PASS','0',v_count::text);
+        RAISE NOTICE '  [PASS] 9.04  Full sweep: sensitive columns absent from SA/BL_3NF/BL_DM (excluding raw ext_*)';
+        CALL bl_cl.prc_log_test_result('TC-SEC-ALL-01','Sensitive columns absent across SA/BL_3NF/BL_DM (full sweep, excl. raw ext_*)','SECURITY',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Critical','PASS','0',v_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures || format('  [FAIL] 9.04  %s sensitive column(s) found across SA/BL_3NF/BL_DM' || chr(10), v_count);
-        CALL bl_cl.prc_log_test_result('TC-SEC-ALL-01','Sensitive columns absent across SA/BL_3NF/BL_DM (full sweep)','SECURITY',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Critical','FAIL','0',v_count::text);
+        CALL bl_cl.prc_log_test_result('TC-SEC-ALL-01','Sensitive columns absent across SA/BL_3NF/BL_DM (full sweep, excl. raw ext_*)','SECURITY',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Critical','FAIL','0',v_count::text);
     END IF;
 
     -- ============================================================

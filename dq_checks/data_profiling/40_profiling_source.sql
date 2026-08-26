@@ -67,9 +67,9 @@ FROM   unnest(ARRAY['payment_type','product_type','user_gender','ee_gender']) c;
 
 -- ---------- DUPLICATE_FULL_ROW_COUNT ----------
 SELECT bl_cl.fn_log_profile_safe('SOURCE','sa_retail','ext_retail_sales',NULL,'SA_RETAIL','DUPLICATE_FULL_ROW_COUNT',
-    'SELECT COALESCE(SUM(c) - COUNT(*), 0)::text FROM (SELECT COUNT(*) c FROM sa_retail.ext_retail_sales GROUP BY bill_id, product_code, line_item_amount, quantity_sold HAVING COUNT(*) > 1) d');
+    'SELECT (COUNT(*) - COUNT(DISTINCT t.*::text))::text FROM sa_retail.ext_retail_sales t');
 SELECT bl_cl.fn_log_profile_safe('SOURCE','sa_ecom','ext_ecom_sales',NULL,'SA_ECOM','DUPLICATE_FULL_ROW_COUNT',
-    'SELECT COALESCE(SUM(c) - COUNT(*), 0)::text FROM (SELECT COUNT(*) c FROM sa_ecom.ext_ecom_sales GROUP BY payment_id, product_code, sales_amount, quantity HAVING COUNT(*) > 1) d');
+    'SELECT (COUNT(*) - COUNT(DISTINCT t.*::text))::text FROM sa_ecom.ext_ecom_sales t');
 
 -- ---------- DUPLICATE_KEY_COUNT (bill_id/payment_id, product_code) - split identical vs differing amount ----------
 SELECT bl_cl.fn_log_profile_safe('SOURCE','sa_retail','ext_retail_sales',NULL,'SA_RETAIL','DUPLICATE_KEY_COUNT',

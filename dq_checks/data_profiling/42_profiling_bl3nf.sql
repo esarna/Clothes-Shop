@@ -15,9 +15,9 @@ CROSS JOIN unnest(ARRAY['SA_RETAIL','SA_ECOM']) ss;
 
 -- ---------- ROW_COUNT_DELTA vs SA layer for ce_sales ----------
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf','ce_sales',NULL,'SA_RETAIL','ROW_COUNT_DELTA',
-    '(SELECT (SELECT COUNT(*) FROM sa_retail.src_retail_sales) - (SELECT COUNT(*) FROM bl_3nf.ce_sales WHERE source_system = ''SA_RETAIL''))::text');
+    'SELECT ((SELECT COUNT(*) FROM sa_retail.src_retail_sales) - (SELECT COUNT(*) FROM bl_3nf.ce_sales WHERE source_system = ''SA_RETAIL''))::text');
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf','ce_sales',NULL,'SA_ECOM','ROW_COUNT_DELTA',
-    '(SELECT (SELECT COUNT(*) FROM sa_ecom.src_ecom_sales) - (SELECT COUNT(*) FROM bl_3nf.ce_sales WHERE source_system = ''SA_ECOM''))::text');
+    'SELECT ((SELECT COUNT(*) FROM sa_ecom.src_ecom_sales) - (SELECT COUNT(*) FROM bl_3nf.ce_sales WHERE source_system = ''SA_ECOM''))::text');
 
 -- ---------- SCD2 versioning volume: is_active split + versions per key ----------
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf','ce_customers_scd',NULL,'BOTH','ROW_COUNT',
@@ -54,21 +54,21 @@ SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf','ce_locations',NULL,'BOTH','R
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf',t,c,'BOTH','DISTINCT_COUNT',
     format('SELECT COUNT(DISTINCT %I)::text FROM bl_3nf.%I', c, t))
 FROM   (VALUES
-    ('ce_product_top_categories','top_category_name'),
-    ('ce_product_categories','category_name'),
-    ('ce_product_subcategories','subcategory_name')
+    ('ce_product_top_categories','product_top_category_name'),
+    ('ce_product_categories','product_category_name'),
+    ('ce_product_subcategories','product_subcategory_name')
 ) AS x(t, c);
 
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf',t,c,'BOTH','TOP_VALUE_FREQ',
     format('SELECT string_agg(v || '':'' || n, '', '') FROM (SELECT %I AS v, COUNT(*) AS n FROM bl_3nf.%I GROUP BY %I ORDER BY COUNT(*) DESC LIMIT 5) s', c, t, c))
 FROM   (VALUES
-    ('ce_product_top_categories','top_category_name'),
-    ('ce_product_categories','category_name'),
-    ('ce_product_subcategories','subcategory_name')
+    ('ce_product_top_categories','product_top_category_name'),
+    ('ce_product_categories','product_category_name'),
+    ('ce_product_subcategories','product_subcategory_name')
 ) AS x(t, c);
 
 -- ---------- NULL_COUNT for every NOT NULL column (deviation = defaulting rule failure) ----------
-SELECT bl_cl.fn_log_profile_safe('BL_3NF', col.table_schema, col.table_name, col.column_name, 'BOTH', 'NULL_COUNT',
+SELECT bl_cl.fn_log_profile_safe('BL_3NF', col.table_schema::text, col.table_name::text, col.column_name::text, 'BOTH', 'NULL_COUNT',
     format('SELECT COUNT(*)::text FROM %I.%I WHERE %I IS NULL', col.table_schema, col.table_name, col.column_name),
     'expected 0 - deviation indicates a defaulting rule failure')
 FROM   information_schema.columns col

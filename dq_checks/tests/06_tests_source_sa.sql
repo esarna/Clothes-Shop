@@ -76,39 +76,30 @@ BEGIN
     END IF;
 
     -- ============================================================
-    -- 6.05 / 6.06 - Uniqueness: no full-row duplicates in src_* (post-dedup)
+    -- 6.05 / 6.06 - Uniqueness: no full-row duplicates in src_* (post-dedup;
+    --   SA load uses SELECT DISTINCT * only, business-grain dedup is BL_3NF's job)
     -- ============================================================
     v_tests_run := v_tests_run + 1;
-    SELECT COUNT(*) INTO v_count FROM (
-        SELECT bill_id, product_code, COUNT(*) c
-        FROM   sa_retail.src_retail_sales
-        GROUP BY bill_id, product_code, line_item_amount, quantity_sold
-        HAVING COUNT(*) > 1
-    ) d;
+    SELECT COUNT(*) - COUNT(DISTINCT t.*::text) INTO v_count FROM sa_retail.src_retail_sales t;
     IF v_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 6.05  src_retail_sales: no full-row duplicates';
         CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-SA-01','No full-row duplicates in src_retail_sales','DQ','Uniqueness','SA','sa_retail','src_retail_sales','SA_RETAIL','Critical','PASS','0',v_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
-        v_failures := v_failures || format('  [FAIL] 6.05  src_retail_sales: %s duplicate row group(s)' || chr(10), v_count);
+        v_failures := v_failures || format('  [FAIL] 6.05  src_retail_sales: %s duplicate row(s)' || chr(10), v_count);
         CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-SA-01','No full-row duplicates in src_retail_sales','DQ','Uniqueness','SA','sa_retail','src_retail_sales','SA_RETAIL','Critical','FAIL','0',v_count::text);
     END IF;
 
     v_tests_run := v_tests_run + 1;
-    SELECT COUNT(*) INTO v_count FROM (
-        SELECT payment_id, product_code, COUNT(*) c
-        FROM   sa_ecom.src_ecom_sales
-        GROUP BY payment_id, product_code, sales_amount, quantity
-        HAVING COUNT(*) > 1
-    ) d;
+    SELECT COUNT(*) - COUNT(DISTINCT t.*::text) INTO v_count FROM sa_ecom.src_ecom_sales t;
     IF v_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 6.06  src_ecom_sales: no full-row duplicates';
         CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-SA-02','No full-row duplicates in src_ecom_sales','DQ','Uniqueness','SA','sa_ecom','src_ecom_sales','SA_ECOM','Critical','PASS','0',v_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
-        v_failures := v_failures || format('  [FAIL] 6.06  src_ecom_sales: %s duplicate row group(s)' || chr(10), v_count);
+        v_failures := v_failures || format('  [FAIL] 6.06  src_ecom_sales: %s duplicate row(s)' || chr(10), v_count);
         CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-SA-02','No full-row duplicates in src_ecom_sales','DQ','Uniqueness','SA','sa_ecom','src_ecom_sales','SA_ECOM','Critical','FAIL','0',v_count::text);
     END IF;
 

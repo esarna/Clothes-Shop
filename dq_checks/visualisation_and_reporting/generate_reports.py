@@ -282,6 +282,9 @@ def chart_null_pct_heatmap(metrics_df, layer, out_path):
 def write_tables(tables, xlsx_path, output_dir):
     with pd.ExcelWriter(xlsx_path) as writer:
         for name, df in tables.items():
+            if isinstance(df.columns, pd.MultiIndex):
+                df = df.copy()
+                df.columns = ["_".join(str(c) for c in col if str(c)) for col in df.columns]
             df.to_excel(writer, sheet_name=name[:31], index=False)
             md_path = os.path.join(output_dir, f"{name}.md")
             with open(md_path, "w", encoding="utf-8") as f:
