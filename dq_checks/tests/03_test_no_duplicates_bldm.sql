@@ -33,11 +33,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.01  dim_payment_types    — NK payment_type_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-01','No duplicate NK in dim_payment_types','DQ','Uniqueness','BL_DM','bl_dm','dim_payment_types','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.01  dim_payment_types: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.01  dim_payment_types — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-01','No duplicate NK in dim_payment_types','DQ','Uniqueness','BL_DM','bl_dm','dim_payment_types','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -59,11 +61,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.02  dim_employees       — NK (employee_src_id+source_system): no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-02','No duplicate NK in dim_employees','DQ','Uniqueness','BL_DM','bl_dm','dim_employees','BOTH','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.02  dim_employees: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.02  dim_employees — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-02','No duplicate NK in dim_employees','DQ','Uniqueness','BL_DM','bl_dm','dim_employees','BOTH','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -85,11 +89,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.03  dim_stores          — NK store_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-03','No duplicate NK in dim_stores','DQ','Uniqueness','BL_DM','bl_dm','dim_stores','BOTH','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.03  dim_stores: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.03  dim_stores — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-03','No duplicate NK in dim_stores','DQ','Uniqueness','BL_DM','bl_dm','dim_stores','BOTH','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -116,11 +122,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.04a dim_customers_scd   — IS_ACTIVE=Y uniqueness per NK: OK';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-04A','Single active SCD2 version per NK in dim_customers_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.04a dim_customers_scd: %s NK(s) with >1 active row' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.04a dim_customers_scd — % NK(s) with multiple active rows', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-04A','Single active SCD2 version per NK in dim_customers_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
     -- Test B: SURR_ID is unique (PK sanity)
@@ -137,11 +145,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.04b dim_customers_scd   — SURR_ID uniqueness: OK';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-04B','SURR_ID PK uniqueness in dim_customers_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.04b dim_customers_scd: %s duplicate SURR_ID(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.04b dim_customers_scd — % duplicate SURR_ID(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-04B','SURR_ID PK uniqueness in dim_customers_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -168,11 +178,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.05a dim_products_scd    — IS_ACTIVE=Y uniqueness per NK: OK';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-05A','Single active SCD2 version per NK in dim_products_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.05a dim_products_scd: %s NK(s) with >1 active row' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.05a dim_products_scd — % NK(s) with multiple active rows', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-05A','Single active SCD2 version per NK in dim_products_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
     -- Test B
@@ -189,11 +201,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.05b dim_products_scd    — SURR_ID uniqueness: OK';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-05B','SURR_ID PK uniqueness in dim_products_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.05b dim_products_scd: %s duplicate SURR_ID(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.05b dim_products_scd — % duplicate SURR_ID(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-05B','SURR_ID PK uniqueness in dim_products_scd','DQ','Uniqueness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -216,11 +230,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.06  fct_sales_dd        — grain NK (line_src_id+source_system+event_dt): no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-06','Fact grain uniqueness in fct_sales_dd','DQ','Uniqueness','BL_DM','bl_dm','fct_sales_dd','BOTH','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 3.06  fct_sales_dd: %s duplicate grain NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 3.06  fct_sales_dd — % duplicate grain NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-DM-06','Fact grain uniqueness in fct_sales_dd','DQ','Uniqueness','BL_DM','bl_dm','fct_sales_dd','BOTH','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -242,11 +258,13 @@ BEGIN
     IF v_dup_count > 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 3.07  fct_sales_dd        — % partition(s) attached', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-DM-07','Partition attachment on fct_sales_dd','SCHEMA','Validity','BL_DM','bl_dm','fct_sales_dd','N/A','Major','PASS','>0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             '  [FAIL] 3.07  fct_sales_dd: no partitions found — ATTACH PARTITION may have failed' || chr(10);
         RAISE WARNING '  [FAIL] 3.07  fct_sales_dd — no partitions attached';
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-DM-07','Partition attachment on fct_sales_dd','SCHEMA','Validity','BL_DM','bl_dm','fct_sales_dd','N/A','Major','FAIL','>0',v_dup_count::text);
     END IF;
 
 

@@ -88,12 +88,14 @@ BEGIN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 2.01  SA_RETAIL → CE_SALES coverage: all % grain rows present',
             v_sa_retail_total;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-01','SA_RETAIL grain coverage in ce_sales','ETL','Completeness','BL_3NF','bl_3nf','ce_sales','SA_RETAIL','Critical','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 2.01  SA_RETAIL: %s grain row(s) in src_retail_sales have NO match in ce_sales' || chr(10),
                 v_missing_count);
         RAISE WARNING '  [FAIL] 2.01  SA_RETAIL → CE_SALES: % grain row(s) missing', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-01','SA_RETAIL grain coverage in ce_sales','ETL','Completeness','BL_3NF','bl_3nf','ce_sales','SA_RETAIL','Critical','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -127,12 +129,14 @@ BEGIN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 2.02  SA_ECOM → CE_SALES coverage: all % grain rows present',
             v_sa_ecom_total;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-02','SA_ECOM grain coverage in ce_sales','ETL','Completeness','BL_3NF','bl_3nf','ce_sales','SA_ECOM','Critical','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 2.02  SA_ECOM: %s grain row(s) in src_ecom_sales have NO match in ce_sales' || chr(10),
                 v_missing_count);
         RAISE WARNING '  [FAIL] 2.02  SA_ECOM → CE_SALES: % grain row(s) missing', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-02','SA_ECOM grain coverage in ce_sales','ETL','Completeness','BL_3NF','bl_3nf','ce_sales','SA_ECOM','Critical','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -159,12 +163,14 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 2.03  SA_RETAIL customers → CE_CUSTOMERS_SCD: all present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-03','SA_RETAIL customer coverage in ce_customers_scd','ETL','Completeness','BL_3NF','bl_3nf','ce_customers_scd','SA_RETAIL','Major','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 2.03  SA_RETAIL: %s customer(s) not found in ce_customers_scd' || chr(10),
                 v_missing_count);
         RAISE WARNING '  [FAIL] 2.03  SA_RETAIL customers missing in CE_CUSTOMERS_SCD: %', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-03','SA_RETAIL customer coverage in ce_customers_scd','ETL','Completeness','BL_3NF','bl_3nf','ce_customers_scd','SA_RETAIL','Major','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -191,12 +197,14 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 2.04  SA_ECOM customers → CE_CUSTOMERS_SCD: all present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-04','SA_ECOM customer coverage in ce_customers_scd','ETL','Completeness','BL_3NF','bl_3nf','ce_customers_scd','SA_ECOM','Major','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 2.04  SA_ECOM: %s user(s) not found in ce_customers_scd' || chr(10),
                 v_missing_count);
         RAISE WARNING '  [FAIL] 2.04  SA_ECOM customers missing in CE_CUSTOMERS_SCD: %', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-04','SA_ECOM customer coverage in ce_customers_scd','ETL','Completeness','BL_3NF','bl_3nf','ce_customers_scd','SA_ECOM','Major','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -227,12 +235,14 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 2.05  SA products → CE_PRODUCTS_SCD: all product codes present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-05','SA product coverage in ce_products_scd','ETL','Completeness','BL_3NF','bl_3nf','ce_products_scd','BOTH','Major','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 2.05  %s product code(s) from SA not found in ce_products_scd' || chr(10),
                 v_missing_count);
         RAISE WARNING '  [FAIL] 2.05  Products missing in CE_PRODUCTS_SCD: %', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-3NF-05','SA product coverage in ce_products_scd','ETL','Completeness','BL_3NF','bl_3nf','ce_products_scd','BOTH','Major','FAIL','0',v_missing_count::text);
     END IF;
 
 

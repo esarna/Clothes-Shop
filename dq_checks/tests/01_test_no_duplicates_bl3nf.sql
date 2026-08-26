@@ -38,11 +38,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.01  ce_store_zones          — NK store_zone_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-01','No duplicate NK in ce_store_zones','DQ','Uniqueness','BL_3NF','bl_3nf','ce_store_zones','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.01  ce_store_zones: %s duplicate NK(s) found in store_zone_src_id' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.01  ce_store_zones — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-01','No duplicate NK in ce_store_zones','DQ','Uniqueness','BL_3NF','bl_3nf','ce_store_zones','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -65,11 +67,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.02  ce_payment_types        — NK payment_type_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-02','No duplicate NK in ce_payment_types','DQ','Uniqueness','BL_3NF','bl_3nf','ce_payment_types','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.02  ce_payment_types: %s duplicate NK(s) found' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.02  ce_payment_types — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-02','No duplicate NK in ce_payment_types','DQ','Uniqueness','BL_3NF','bl_3nf','ce_payment_types','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -92,11 +96,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.03  ce_product_top_categories — NK: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-03','No duplicate NK in ce_product_top_categories','DQ','Uniqueness','BL_3NF','bl_3nf','ce_product_top_categories','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.03  ce_product_top_categories: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.03  ce_product_top_categories — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-03','No duplicate NK in ce_product_top_categories','DQ','Uniqueness','BL_3NF','bl_3nf','ce_product_top_categories','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -119,11 +125,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.04  ce_product_categories   — NK: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-04','No duplicate NK in ce_product_categories','DQ','Uniqueness','BL_3NF','bl_3nf','ce_product_categories','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.04  ce_product_categories: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.04  ce_product_categories — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-04','No duplicate NK in ce_product_categories','DQ','Uniqueness','BL_3NF','bl_3nf','ce_product_categories','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -146,11 +154,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.05  ce_product_subcategories — NK: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-05','No duplicate NK in ce_product_subcategories','DQ','Uniqueness','BL_3NF','bl_3nf','ce_product_subcategories','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.05  ce_product_subcategories: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.05  ce_product_subcategories — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-05','No duplicate NK in ce_product_subcategories','DQ','Uniqueness','BL_3NF','bl_3nf','ce_product_subcategories','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -173,11 +183,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.06  ce_locations            — NK location_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-06','No duplicate NK in ce_locations','DQ','Uniqueness','BL_3NF','bl_3nf','ce_locations','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.06  ce_locations: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.06  ce_locations — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-06','No duplicate NK in ce_locations','DQ','Uniqueness','BL_3NF','bl_3nf','ce_locations','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -200,11 +212,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.07  ce_employees            — NK employee_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-07','No duplicate NK in ce_employees','DQ','Uniqueness','BL_3NF','bl_3nf','ce_employees','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.07  ce_employees: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.07  ce_employees — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-07','No duplicate NK in ce_employees','DQ','Uniqueness','BL_3NF','bl_3nf','ce_employees','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -227,11 +241,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.08  ce_stores               — NK store_src_id: no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-08','No duplicate NK in ce_stores','DQ','Uniqueness','BL_3NF','bl_3nf','ce_stores','N/A','Major','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.08  ce_stores: %s duplicate NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.08  ce_stores — % duplicate NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-08','No duplicate NK in ce_stores','DQ','Uniqueness','BL_3NF','bl_3nf','ce_stores','N/A','Major','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -258,11 +274,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.09a ce_customers_scd        — composite PK (customer_id+start_dt): no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-09A','Composite PK uniqueness in ce_customers_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_customers_scd','N/A','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.09a ce_customers_scd: %s duplicate composite PK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.09a ce_customers_scd composite PK — % duplicate(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-09A','Composite PK uniqueness in ce_customers_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_customers_scd','N/A','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
     -- Test B: max one active version per NK
@@ -282,11 +300,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.09b ce_customers_scd        — IS_ACTIVE=Y uniqueness per NK: OK';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-09B','Single active SCD2 version per NK in ce_customers_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_customers_scd','N/A','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.09b ce_customers_scd: %s NK(s) with more than one IS_ACTIVE=Y row' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.09b ce_customers_scd — % NK(s) with multiple active rows', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-09B','Single active SCD2 version per NK in ce_customers_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_customers_scd','N/A','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -313,11 +333,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.10a ce_products_scd         — composite PK (product_id+start_dt): no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-10A','Composite PK uniqueness in ce_products_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_products_scd','N/A','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.10a ce_products_scd: %s duplicate composite PK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.10a ce_products_scd composite PK — % duplicate(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-10A','Composite PK uniqueness in ce_products_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_products_scd','N/A','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
     -- Test B
@@ -337,11 +359,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.10b ce_products_scd         — IS_ACTIVE=Y uniqueness per NK: OK';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-10B','Single active SCD2 version per NK in ce_products_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_products_scd','N/A','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.10b ce_products_scd: %s NK(s) with more than one IS_ACTIVE=Y row' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.10b ce_products_scd — % NK(s) with multiple active rows', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-10B','Single active SCD2 version per NK in ce_products_scd','DQ','Uniqueness','BL_3NF','bl_3nf','ce_products_scd','N/A','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
 
@@ -365,11 +389,13 @@ BEGIN
     IF v_dup_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 1.11  ce_sales                — grain NK (sale_src_id+source_system+product_id): no duplicates';
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-11','Fact grain uniqueness in ce_sales','DQ','Uniqueness','BL_3NF','bl_3nf','ce_sales','BOTH','Critical','PASS','0',v_dup_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 1.11  ce_sales: %s duplicate grain NK(s)' || chr(10), v_dup_count);
         RAISE WARNING '  [FAIL] 1.11  ce_sales — % duplicate grain NK(s)', v_dup_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-UNIQ-3NF-11','Fact grain uniqueness in ce_sales','DQ','Uniqueness','BL_3NF','bl_3nf','ce_sales','BOTH','Critical','FAIL','0',v_dup_count::text);
     END IF;
 
 
