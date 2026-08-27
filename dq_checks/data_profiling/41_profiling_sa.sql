@@ -68,8 +68,37 @@ SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',c,'SA_RETAI
     format('SELECT MAX(LENGTH(%I))::text FROM sa_retail.src_retail_sales', c))
 FROM   unnest(ARRAY['description','customer_name','employee_name','customer_address','employee_address','store_address']) c;
 
+-- ---------- DISTINCT_COUNT + TOP_VALUE_FREQ - categorical columns ----------
+SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',c,'SA_RETAIL','DISTINCT_COUNT',
+    format('SELECT COUNT(DISTINCT %I)::text FROM sa_retail.src_retail_sales', c))
+FROM   unnest(ARRAY['payment_method','zone_code','top_category','category','subcategory','customer_gender','employee_gender']) c;
+
+SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',c,'SA_RETAIL','TOP_VALUE_FREQ',
+    format('SELECT string_agg(v || '':'' || n, '', '') FROM ('
+           'SELECT %I AS v, COUNT(*) AS n FROM sa_retail.src_retail_sales '
+           'GROUP BY %I ORDER BY COUNT(*) DESC LIMIT 5) t', c, c))
+FROM   unnest(ARRAY['payment_method','zone_code','top_category','category','subcategory','customer_gender','employee_gender']) c;
+
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',c,'SA_ECOM','DISTINCT_COUNT',
+    format('SELECT COUNT(DISTINCT %I)::text FROM sa_ecom.src_ecom_sales', c))
+FROM   unnest(ARRAY['payment_type','product_type','user_gender','ee_gender']) c;
+
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',c,'SA_ECOM','TOP_VALUE_FREQ',
+    format('SELECT string_agg(v || '':'' || n, '', '') FROM ('
+           'SELECT %I AS v, COUNT(*) AS n FROM sa_ecom.src_ecom_sales '
+           'GROUP BY %I ORDER BY COUNT(*) DESC LIMIT 5) t', c, c))
+FROM   unnest(ARRAY['payment_type','product_type','user_gender','ee_gender']) c;
+
 -- ---------- DUPLICATE_FULL_ROW_COUNT (expected 0, post-dedup) ----------
 SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',NULL,'SA_RETAIL','DUPLICATE_FULL_ROW_COUNT',
     'SELECT (COUNT(*) - COUNT(DISTINCT t.*::text))::text FROM sa_retail.src_retail_sales t');
 SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','DUPLICATE_FULL_ROW_COUNT',
     'SELECT (COUNT(*) - COUNT(DISTINCT t.*::text))::text FROM sa_ecom.src_ecom_sales t');
+
+-- ---------- DUPLICATE_KEY_COUNT (bill_id/payment_id, product_code) - post-dedup, expected <= SOURCE value ----------
+SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',NULL,'SA_RETAIL','DUPLICATE_KEY_COUNT',
+    'SELECT COUNT(*)::text FROM (SELECT bill_id, product_code FROM sa_retail.src_retail_sales GROUP BY bill_id, product_code HAVING COUNT(*) > 1) d',
+    'post-dedup grain-key duplicates; compare against 40_profiling_source.sql SOURCE-layer value');
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','DUPLICATE_KEY_COUNT',
+    'SELECT COUNT(*)::text FROM (SELECT payment_id, product_code FROM sa_ecom.src_ecom_sales GROUP BY payment_id, product_code HAVING COUNT(*) > 1) d',
+    'post-dedup grain-key duplicates; compare against 40_profiling_source.sql SOURCE-layer value');
