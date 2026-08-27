@@ -68,6 +68,14 @@ SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',c,'SA_RETAI
     format('SELECT MAX(LENGTH(%I))::text FROM sa_retail.src_retail_sales', c))
 FROM   unnest(ARRAY['description','customer_name','employee_name','customer_address','employee_address','store_address']) c;
 
+-- ---------- MIN/MAX_LENGTH - ecom text columns (truncation check basis) ----------
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',c,'SA_ECOM','MIN_LENGTH',
+    format('SELECT MIN(LENGTH(%I))::text FROM sa_ecom.src_ecom_sales', c))
+FROM   unnest(ARRAY['details','user_name','ee_name','user_address','ee_address']) c;
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',c,'SA_ECOM','MAX_LENGTH',
+    format('SELECT MAX(LENGTH(%I))::text FROM sa_ecom.src_ecom_sales', c))
+FROM   unnest(ARRAY['details','user_name','ee_name','user_address','ee_address']) c;
+
 -- ---------- DISTINCT_COUNT + TOP_VALUE_FREQ - categorical columns ----------
 SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',c,'SA_RETAIL','DISTINCT_COUNT',
     format('SELECT COUNT(DISTINCT %I)::text FROM sa_retail.src_retail_sales', c))
@@ -102,3 +110,11 @@ SELECT bl_cl.fn_log_profile_safe('SA','sa_retail','src_retail_sales',NULL,'SA_RE
 SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','DUPLICATE_KEY_COUNT',
     'SELECT COUNT(*)::text FROM (SELECT payment_id, product_code FROM sa_ecom.src_ecom_sales GROUP BY payment_id, product_code HAVING COUNT(*) > 1) d',
     'post-dedup grain-key duplicates; compare against 40_profiling_source.sql SOURCE-layer value');
+
+-- ---------- DUPLICATE_KEY_COUNT split - identical vs differing sales_amount within same grain key ----------
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','DUPLICATE_KEY_COUNT',
+    'SELECT COUNT(*)::text FROM (SELECT payment_id, product_code FROM sa_ecom.src_ecom_sales GROUP BY payment_id, product_code HAVING COUNT(DISTINCT sales_amount) = 1 AND COUNT(*) > 1) d',
+    'identical_amount subset of grain-key duplicates');
+SELECT bl_cl.fn_log_profile_safe('SA','sa_ecom','src_ecom_sales',NULL,'SA_ECOM','DUPLICATE_KEY_COUNT',
+    'SELECT COUNT(*)::text FROM (SELECT payment_id, product_code FROM sa_ecom.src_ecom_sales GROUP BY payment_id, product_code HAVING COUNT(DISTINCT sales_amount) > 1) d',
+    'differing_amount subset of grain-key duplicates');

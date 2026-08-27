@@ -6,7 +6,27 @@
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf',t,NULL,'BOTH','ROW_COUNT',
     format('SELECT COUNT(*)::text FROM bl_3nf.%I', t))
 FROM   unnest(ARRAY['ce_store_zones','ce_payment_types','ce_product_top_categories','ce_product_categories',
-                     'ce_product_subcategories','ce_locations']) t;
+                     'ce_product_subcategories','ce_locations','ce_dates']) t;
+
+-- ---------- Default row (id = -1) presence check - one per ce_* table ----------
+SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf',t,pk,'BOTH','ROW_COUNT',
+    format('SELECT COUNT(*)::text FROM bl_3nf.%I WHERE %I = -1', t, pk),
+    'expected 1 - default row presence check')
+FROM   (VALUES
+    ('ce_store_zones','store_zone_id'), ('ce_payment_types','payment_type_id'),
+    ('ce_product_top_categories','product_top_category_id'), ('ce_product_categories','product_category_id'),
+    ('ce_product_subcategories','product_subcategory_id'), ('ce_locations','location_id'),
+    ('ce_employees','employee_id'), ('ce_stores','store_id'),
+    ('ce_customers_scd','customer_id'), ('ce_products_scd','product_id')
+) AS x(t, pk);
+
+-- ---------- SCD2: distinct natural keys with more than one version ----------
+SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf','ce_customers_scd','customer_src_id','BOTH','ROW_COUNT',
+    'SELECT COUNT(*)::text FROM (SELECT customer_src_id, source_system FROM bl_3nf.ce_customers_scd WHERE customer_id > 0 GROUP BY customer_src_id, source_system HAVING COUNT(*) > 1) d',
+    'count of natural keys with >1 SCD2 version');
+SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf','ce_products_scd','product_src_id','BOTH','ROW_COUNT',
+    'SELECT COUNT(*)::text FROM (SELECT product_src_id, source_system FROM bl_3nf.ce_products_scd WHERE product_id > 0 GROUP BY product_src_id, source_system HAVING COUNT(*) > 1) d',
+    'count of natural keys with >1 SCD2 version');
 
 SELECT bl_cl.fn_log_profile_safe('BL_3NF','bl_3nf',t,NULL,ss,'ROW_COUNT',
     format('SELECT COUNT(*)::text FROM bl_3nf.%I WHERE source_system = %L', t, ss))

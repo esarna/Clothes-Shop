@@ -431,3 +431,5 @@ FodyWeavers.xsd
 
 # folder with DWH data
 /data
+/run_scripts
+/report_output

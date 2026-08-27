@@ -149,6 +149,109 @@ BEGIN
     END IF;
 
     -- ============================================================
+    -- 9.06 - Sequence wiring: every surrogate PK column has DEFAULT nextval(...)
+    -- ============================================================
+    v_tests_run := v_tests_run + 1;
+    SELECT COUNT(*) INTO v_count
+    FROM   information_schema.columns c
+    JOIN   information_schema.key_column_usage k
+           ON  k.table_schema = c.table_schema AND k.table_name = c.table_name AND k.column_name = c.column_name
+    JOIN   information_schema.table_constraints tc
+           ON  tc.constraint_name = k.constraint_name AND tc.table_schema = k.table_schema AND tc.constraint_type = 'PRIMARY KEY'
+    WHERE  c.table_schema IN ('bl_3nf','bl_dm')
+      AND  (c.table_name LIKE 'ce_%' OR c.table_name LIKE 'dim_%')
+      AND  c.column_name LIKE '%\_id' ESCAPE '\'
+      AND  COALESCE(c.column_default,'') NOT LIKE 'nextval(%';
+    IF v_count = 0 THEN
+        v_tests_passed := v_tests_passed + 1;
+        RAISE NOTICE '  [PASS] 9.06  Every surrogate PK column is wired to a sequence DEFAULT';
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-04','Surrogate PK columns wired to sequence DEFAULT','SCHEMA',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Minor','PASS','0',v_count::text);
+    ELSE
+        v_tests_failed := v_tests_failed + 1;
+        v_failures := v_failures || format('  [FAIL] 9.06  %s surrogate PK column(s) without sequence DEFAULT' || chr(10), v_count);
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-04','Surrogate PK columns wired to sequence DEFAULT','SCHEMA',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Minor','FAIL','0',v_count::text);
+    END IF;
+
+    -- ============================================================
+    -- 9.07 - NOT NULL present on every PK column of every expected table
+    -- ============================================================
+    v_tests_run := v_tests_run + 1;
+    SELECT COUNT(*) INTO v_count
+    FROM   information_schema.columns c
+    JOIN   information_schema.key_column_usage k
+           ON  k.table_schema = c.table_schema AND k.table_name = c.table_name AND k.column_name = c.column_name
+    JOIN   information_schema.table_constraints tc
+           ON  tc.constraint_name = k.constraint_name AND tc.table_schema = k.table_schema AND tc.constraint_type = 'PRIMARY KEY'
+    WHERE  c.table_schema || '.' || c.table_name = ANY(v_expected_tables)
+      AND  c.is_nullable = 'YES';
+    IF v_count = 0 THEN
+        v_tests_passed := v_tests_passed + 1;
+        RAISE NOTICE '  [PASS] 9.07  Every PK column is NOT NULL';
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-05','PK columns are NOT NULL on every core table','SCHEMA',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Critical','PASS','0',v_count::text);
+    ELSE
+        v_tests_failed := v_tests_failed + 1;
+        v_failures := v_failures || format('  [FAIL] 9.07  %s PK column(s) allow NULL' || chr(10), v_count);
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-05','PK columns are NOT NULL on every core table','SCHEMA',NULL,'CROSS_LAYER',NULL,'ALL','N/A','Critical','FAIL','0',v_count::text);
+    END IF;
+
+    -- ============================================================
+    -- 9.08 - Partition child schema identical to parent (column count/types match)
+    -- ============================================================
+    v_tests_run := v_tests_run + 1;
+    SELECT COUNT(*) INTO v_count
+    FROM   information_schema.columns p
+    WHERE  p.table_schema = 'bl_dm' AND p.table_name = 'fct_sales_dd'
+      AND  NOT EXISTS (
+            SELECT 1 FROM information_schema.columns c
+            WHERE  c.table_schema = 'bl_dm' AND c.table_name = 'fct_sales_dd_2022_01'
+              AND  c.column_name = p.column_name AND c.data_type = p.data_type
+      );
+    IF v_count = 0 THEN
+        v_tests_passed := v_tests_passed + 1;
+        RAISE NOTICE '  [PASS] 9.08  Partition fct_sales_dd_2022_01 schema matches parent';
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-06','Partition child schema identical to parent (spot check)','SCHEMA',NULL,'BL_DM','bl_dm','fct_sales_dd_2022_01','N/A','Major','PASS','0',v_count::text);
+    ELSE
+        v_tests_failed := v_tests_failed + 1;
+        v_failures := v_failures || format('  [FAIL] 9.08  %s column(s) differ from parent schema' || chr(10), v_count);
+        CALL bl_cl.prc_log_test_result('TC-SCHEMA-06','Partition child schema identical to parent (spot check)','SCHEMA',NULL,'BL_DM','bl_dm','fct_sales_dd_2022_01','N/A','Major','FAIL','0',v_count::text);
+    END IF;
+
+    -- ============================================================
+    -- 9.09 - PRODUCT_MIN_AMOUNT precision/scale spot-check (informational, always logged)
+    -- ============================================================
+    v_tests_run := v_tests_run + 1;
+    SELECT string_agg(table_name || '=NUMERIC(' || numeric_precision || ',' || numeric_scale || ')', '; ') INTO v_missing_default
+    FROM   information_schema.columns
+    WHERE  column_name = 'product_min_amount';
+    v_tests_passed := v_tests_passed + 1;
+    RAISE NOTICE '  [PASS] 9.09  product_min_amount precision/scale: %', v_missing_default;
+    CALL bl_cl.prc_log_test_result('TC-SCHEMA-07','product_min_amount precision/scale spot-check','SCHEMA',NULL,'CROSS_LAYER',NULL,'ce_products_scd/dim_products_scd','N/A','Trivial','PASS',v_missing_default,v_missing_default);
+
+    -- ============================================================
+    -- 9.10 - DIM_CUSTOMERS_SCD address flattening exact match vs CE_LOCATIONS
+    -- ============================================================
+    v_tests_run := v_tests_run + 1;
+    SELECT COUNT(*) INTO v_count
+    FROM   bl_dm.dim_customers_scd dc
+    JOIN   bl_3nf.ce_customers_scd cc
+           ON  dc.customer_src_id = cc.customer_src_id AND dc.source_system = cc.source_system
+    LEFT JOIN bl_3nf.ce_locations loc ON loc.location_id = cc.customer_location_id
+    WHERE  dc.customer_surr_id > 0
+      AND  (dc.customer_address <> COALESCE(loc.location_address, 'n/a')
+        OR  dc.customer_city    <> COALESCE(loc.location_city, 'n/a')
+        OR  dc.customer_state   <> COALESCE(loc.location_state, 'n/a')
+        OR  dc.customer_postal_code <> COALESCE(loc.location_postal_code, 'n/a'));
+    IF v_count = 0 THEN
+        v_tests_passed := v_tests_passed + 1;
+        RAISE NOTICE '  [PASS] 9.10  dim_customers_scd address flattening matches ce_locations';
+        CALL bl_cl.prc_log_test_result('TC-ETL-DM-ADDR-01','dim_customers_scd address flattening matches ce_locations','ETL',NULL,'BL_DM','bl_dm','dim_customers_scd','BOTH','Major','PASS','0',v_count::text);
+    ELSE
+        v_tests_failed := v_tests_failed + 1;
+        v_failures := v_failures || format('  [FAIL] 9.10  %s dim_customers_scd row(s) with address mismatch' || chr(10), v_count);
+        CALL bl_cl.prc_log_test_result('TC-ETL-DM-ADDR-01','dim_customers_scd address flattening matches ce_locations','ETL',NULL,'BL_DM','bl_dm','dim_customers_scd','BOTH','Major','FAIL','0',v_count::text);
+    END IF;
+
+    -- ============================================================
     -- SUMMARY
     -- ============================================================
     RAISE NOTICE '----------------------------------------------------------------';
