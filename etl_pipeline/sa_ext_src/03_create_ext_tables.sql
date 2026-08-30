@@ -80,7 +80,11 @@ CREATE FOREIGN TABLE sa_retail.ext_retail_sales (
 )
 SERVER file_server
 OPTIONS (
-    filename  'C:/Program Files/PostgreSQL/18/data/retail-sample.csv',
+    -- Data & Incremental Load demo: uncomment ONE filename line, comment out the rest.
+    -- filename  'C:/Program Files/PostgreSQL/18/data/retail-sample.csv',
+    -- filename  'C:/Program Files/PostgreSQL/18/data/retail-95_initial_data.csv',
+    -- filename  'C:/Program Files/PostgreSQL/18/data/retail-5_incremental_load.csv',
+    filename  'C:/Program Files/PostgreSQL/18/data/retail-update_SCD2_demo.csv',
     format    'csv',
     header    'true',
     delimiter ',',
@@ -156,7 +160,11 @@ CREATE FOREIGN TABLE sa_ecom.ext_ecom_sales (
 )
 SERVER file_server
 OPTIONS (
-    filename  'C:/Program Files/PostgreSQL/18/data/ecom-sample.csv',
+    -- Data & Incremental Load demo: uncomment ONE filename line, comment out the rest.
+    -- filename  'C:/Program Files/PostgreSQL/18/data/ecom-sample.csv',
+    -- filename  'C:/Program Files/PostgreSQL/18/data/ecom-95_initial_data.csv',
+    -- filename  'C:/Program Files/PostgreSQL/18/data/ecom-5_incremental_load.csv',
+    filename  'C:/Program Files/PostgreSQL/18/data/ecom-update_SCD2_demo.csv',
     format    'csv',
     header    'true',
     delimiter ',',

@@ -842,7 +842,6 @@ BEGIN
             SELECT 1
             FROM   bl_3nf.ce_locations tgt
             WHERE  tgt.location_src_id = v_rec.location_src_id
-                AND tgt.source_system = v_rec.source_system
         );
         GET DIAGNOSTICS v_delta = ROW_COUNT;
         v_rows_inserted := v_rows_inserted + v_delta;
