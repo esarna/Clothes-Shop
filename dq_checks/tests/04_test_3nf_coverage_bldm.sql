@@ -36,11 +36,13 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 4.01  CE_PAYMENT_TYPES → DIM_PAYMENT_TYPES: all keys present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-01','ce_payment_types coverage in dim_payment_types','ETL','Completeness','BL_DM','bl_dm','dim_payment_types','N/A','Major','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 4.01  DIM_PAYMENT_TYPES: %s key(s) missing from BL_3NF' || chr(10), v_missing_count);
         RAISE WARNING '  [FAIL] 4.01  DIM_PAYMENT_TYPES missing % key(s)', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-01','ce_payment_types coverage in dim_payment_types','ETL','Completeness','BL_DM','bl_dm','dim_payment_types','N/A','Major','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -66,11 +68,13 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 4.02  CE_EMPLOYEES → DIM_EMPLOYEES: all keys present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-02','ce_employees coverage in dim_employees','ETL','Completeness','BL_DM','bl_dm','dim_employees','BOTH','Major','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 4.02  DIM_EMPLOYEES: %s key(s) missing' || chr(10), v_missing_count);
         RAISE WARNING '  [FAIL] 4.02  DIM_EMPLOYEES missing % key(s)', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-02','ce_employees coverage in dim_employees','ETL','Completeness','BL_DM','bl_dm','dim_employees','BOTH','Major','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -95,11 +99,13 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 4.03  CE_STORES → DIM_STORES: all keys present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-03','ce_stores coverage in dim_stores','ETL','Completeness','BL_DM','bl_dm','dim_stores','BOTH','Major','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 4.03  DIM_STORES: %s key(s) missing' || chr(10), v_missing_count);
         RAISE WARNING '  [FAIL] 4.03  DIM_STORES missing % key(s)', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-03','ce_stores coverage in dim_stores','ETL','Completeness','BL_DM','bl_dm','dim_stores','BOTH','Major','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -127,11 +133,13 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 4.04  CE_CUSTOMERS_SCD → DIM_CUSTOMERS_SCD: all active versions present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-04','ce_customers_scd active version coverage in dim_customers_scd','ETL','Completeness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 4.04  DIM_CUSTOMERS_SCD: %s active version(s) missing' || chr(10), v_missing_count);
         RAISE WARNING '  [FAIL] 4.04  DIM_CUSTOMERS_SCD missing % active version(s)', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-04','ce_customers_scd active version coverage in dim_customers_scd','ETL','Completeness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -159,11 +167,13 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 4.05  CE_PRODUCTS_SCD → DIM_PRODUCTS_SCD: all active versions present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-05','ce_products_scd active version coverage in dim_products_scd','ETL','Completeness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 4.05  DIM_PRODUCTS_SCD: %s active version(s) missing' || chr(10), v_missing_count);
         RAISE WARNING '  [FAIL] 4.05  DIM_PRODUCTS_SCD missing % active version(s)', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-05','ce_products_scd active version coverage in dim_products_scd','ETL','Completeness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','FAIL','0',v_missing_count::text);
     END IF;
 
 
@@ -196,11 +206,13 @@ BEGIN
     IF v_missing_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 4.06  CE_SALES → FCT_SALES_DD: all grain rows present';
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-06','ce_sales grain coverage in fct_sales_dd','ETL','Completeness','BL_DM','bl_dm','fct_sales_dd','BOTH','Critical','PASS','0',v_missing_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 4.06  FCT_SALES_DD: %s grain row(s) from CE_SALES missing' || chr(10), v_missing_count);
         RAISE WARNING '  [FAIL] 4.06  FCT_SALES_DD missing % grain row(s) from CE_SALES', v_missing_count;
+        CALL bl_cl.prc_log_test_result('TC-ETL-COMP-DM-06','ce_sales grain coverage in fct_sales_dd','ETL','Completeness','BL_DM','bl_dm','fct_sales_dd','BOTH','Critical','FAIL','0',v_missing_count::text);
     END IF;
 
 

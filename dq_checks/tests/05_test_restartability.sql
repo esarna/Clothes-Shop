@@ -88,12 +88,14 @@ BEGIN
     IF v_after_ce_sales = v_before_ce_sales THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.01  ce_sales row count unchanged on 2nd run: %', v_after_ce_sales;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-01','Restartability: ce_sales row count unchanged','DQ','Timeliness','BL_3NF','bl_3nf','ce_sales','BOTH','Critical','PASS',v_before_ce_sales::text,v_after_ce_sales::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.01  ce_sales: BEFORE=%s AFTER=%s (delta=%s unexpected rows)' || chr(10),
                 v_before_ce_sales, v_after_ce_sales, v_after_ce_sales - v_before_ce_sales);
         RAISE WARNING '  [FAIL] 5.01  ce_sales changed: % → %', v_before_ce_sales, v_after_ce_sales;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-01','Restartability: ce_sales row count unchanged','DQ','Timeliness','BL_3NF','bl_3nf','ce_sales','BOTH','Critical','FAIL',v_before_ce_sales::text,v_after_ce_sales::text);
     END IF;
 
     -- ============================================================
@@ -104,12 +106,14 @@ BEGIN
     IF v_after_ce_customers = v_before_ce_customers THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.02  ce_customers_scd row count unchanged: %', v_after_ce_customers;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-02','Restartability: ce_customers_scd row count unchanged','DQ','Timeliness','BL_3NF','bl_3nf','ce_customers_scd','BOTH','Critical','PASS',v_before_ce_customers::text,v_after_ce_customers::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.02  ce_customers_scd: BEFORE=%s AFTER=%s' || chr(10),
                 v_before_ce_customers, v_after_ce_customers);
         RAISE WARNING '  [FAIL] 5.02  ce_customers_scd changed: % → %', v_before_ce_customers, v_after_ce_customers;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-02','Restartability: ce_customers_scd row count unchanged','DQ','Timeliness','BL_3NF','bl_3nf','ce_customers_scd','BOTH','Critical','FAIL',v_before_ce_customers::text,v_after_ce_customers::text);
     END IF;
 
     -- ============================================================
@@ -119,12 +123,14 @@ BEGIN
     IF v_after_ce_products = v_before_ce_products THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.03  ce_products_scd row count unchanged: %', v_after_ce_products;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-03','Restartability: ce_products_scd row count unchanged','DQ','Timeliness','BL_3NF','bl_3nf','ce_products_scd','BOTH','Critical','PASS',v_before_ce_products::text,v_after_ce_products::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.03  ce_products_scd: BEFORE=%s AFTER=%s' || chr(10),
                 v_before_ce_products, v_after_ce_products);
         RAISE WARNING '  [FAIL] 5.03  ce_products_scd changed: % → %', v_before_ce_products, v_after_ce_products;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-03','Restartability: ce_products_scd row count unchanged','DQ','Timeliness','BL_3NF','bl_3nf','ce_products_scd','BOTH','Critical','FAIL',v_before_ce_products::text,v_after_ce_products::text);
     END IF;
 
     -- ============================================================
@@ -134,12 +140,14 @@ BEGIN
     IF v_after_fct_sales = v_before_fct_sales THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.04  fct_sales_dd row count unchanged: %', v_after_fct_sales;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-04','Restartability: fct_sales_dd row count unchanged','DQ','Timeliness','BL_DM','bl_dm','fct_sales_dd','BOTH','Critical','PASS',v_before_fct_sales::text,v_after_fct_sales::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.04  fct_sales_dd: BEFORE=%s AFTER=%s (delta=%s)' || chr(10),
                 v_before_fct_sales, v_after_fct_sales, v_after_fct_sales - v_before_fct_sales);
         RAISE WARNING '  [FAIL] 5.04  fct_sales_dd changed: % → %', v_before_fct_sales, v_after_fct_sales;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-04','Restartability: fct_sales_dd row count unchanged','DQ','Timeliness','BL_DM','bl_dm','fct_sales_dd','BOTH','Critical','FAIL',v_before_fct_sales::text,v_after_fct_sales::text);
     END IF;
 
     -- ============================================================
@@ -149,12 +157,14 @@ BEGIN
     IF v_after_dim_customers = v_before_dim_customers THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.05  dim_customers_scd row count unchanged: %', v_after_dim_customers;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-05','Restartability: dim_customers_scd row count unchanged','DQ','Timeliness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','PASS',v_before_dim_customers::text,v_after_dim_customers::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.05  dim_customers_scd: BEFORE=%s AFTER=%s' || chr(10),
                 v_before_dim_customers, v_after_dim_customers);
         RAISE WARNING '  [FAIL] 5.05  dim_customers_scd changed: % → %', v_before_dim_customers, v_after_dim_customers;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-05','Restartability: dim_customers_scd row count unchanged','DQ','Timeliness','BL_DM','bl_dm','dim_customers_scd','BOTH','Critical','FAIL',v_before_dim_customers::text,v_after_dim_customers::text);
     END IF;
 
     -- ============================================================
@@ -164,12 +174,14 @@ BEGIN
     IF v_after_dim_products = v_before_dim_products THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.06  dim_products_scd row count unchanged: %', v_after_dim_products;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-06','Restartability: dim_products_scd row count unchanged','DQ','Timeliness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','PASS',v_before_dim_products::text,v_after_dim_products::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.06  dim_products_scd: BEFORE=%s AFTER=%s' || chr(10),
                 v_before_dim_products, v_after_dim_products);
         RAISE WARNING '  [FAIL] 5.06  dim_products_scd changed: % → %', v_before_dim_products, v_after_dim_products;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-06','Restartability: dim_products_scd row count unchanged','DQ','Timeliness','BL_DM','bl_dm','dim_products_scd','BOTH','Critical','FAIL',v_before_dim_products::text,v_after_dim_products::text);
     END IF;
 
     -- ============================================================
@@ -188,6 +200,7 @@ BEGIN
     IF v_rows_inserted_ce_sales = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.07  Log: prc_load_ce_sales rows_inserted=0 on 2nd run (idempotent)';
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-07','Restartability: prc_load_ce_sales rows_inserted=0 on rerun','DQ','Timeliness','BL_3NF','bl_3nf','ce_sales','BOTH','Major','PASS','0',v_rows_inserted_ce_sales::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
@@ -195,6 +208,7 @@ BEGIN
                    'expected 0 (same source data)' || chr(10), v_rows_inserted_ce_sales);
         RAISE WARNING '  [FAIL] 5.07  prc_load_ce_sales: % rows_inserted on 2nd run',
                       v_rows_inserted_ce_sales;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-07','Restartability: prc_load_ce_sales rows_inserted=0 on rerun','DQ','Timeliness','BL_3NF','bl_3nf','ce_sales','BOTH','Major','FAIL','0',v_rows_inserted_ce_sales::text);
     END IF;
 
     -- ============================================================
@@ -212,6 +226,7 @@ BEGIN
     IF v_rows_inserted_fct_sales = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.08  Log: prc_load_fct_sales_dd rows_inserted=0 on 2nd run (idempotent)';
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-08','Restartability: prc_load_fct_sales_dd rows_inserted=0 on rerun','DQ','Timeliness','BL_DM','bl_dm','fct_sales_dd','BOTH','Major','PASS','0',v_rows_inserted_fct_sales::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
@@ -219,6 +234,7 @@ BEGIN
                    'expected 0' || chr(10), v_rows_inserted_fct_sales);
         RAISE WARNING '  [FAIL] 5.08  prc_load_fct_sales_dd: % rows_inserted on 2nd run',
                       v_rows_inserted_fct_sales;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-08','Restartability: prc_load_fct_sales_dd rows_inserted=0 on rerun','DQ','Timeliness','BL_DM','bl_dm','fct_sales_dd','BOTH','Major','FAIL','0',v_rows_inserted_fct_sales::text);
     END IF;
 
     -- ============================================================
@@ -234,11 +250,13 @@ BEGIN
     IF v_error_count = 0 THEN
         v_tests_passed := v_tests_passed + 1;
         RAISE NOTICE '  [PASS] 5.09  Log: no ERROR entries from 2nd ETL run';
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-09','Restartability: no ERROR entries logged on rerun','DQ','Timeliness','CROSS_LAYER','bl_cl','mta_load_logs','BOTH','Critical','PASS','0',v_error_count::text);
     ELSE
         v_tests_failed := v_tests_failed + 1;
         v_failures := v_failures ||
             format('  [FAIL] 5.09  % ERROR log entry(ies) found from 2nd ETL run' || chr(10), v_error_count);
         RAISE WARNING '  [FAIL] 5.09  % ERROR entries in mta_load_logs from 2nd run', v_error_count;
+        CALL bl_cl.prc_log_test_result('TC-DQ-TIME-RESTART-09','Restartability: no ERROR entries logged on rerun','DQ','Timeliness','CROSS_LAYER','bl_cl','mta_load_logs','BOTH','Critical','FAIL','0',v_error_count::text);
     END IF;
 
     -- ============================================================
