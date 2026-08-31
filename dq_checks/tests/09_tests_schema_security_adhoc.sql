@@ -237,6 +237,8 @@ BEGIN
            ON  dc.customer_src_id = cc.customer_src_id AND dc.source_system = cc.source_system
     LEFT JOIN bl_3nf.ce_locations loc ON loc.location_id = cc.customer_location_id
     WHERE  dc.customer_surr_id > 0
+      AND  dc.is_active = 'Y'
+      AND  cc.is_active = 'Y'
       AND  (dc.customer_address <> COALESCE(loc.location_address, 'n/a')
         OR  dc.customer_city    <> COALESCE(loc.location_city, 'n/a')
         OR  dc.customer_state   <> COALESCE(loc.location_state, 'n/a')
